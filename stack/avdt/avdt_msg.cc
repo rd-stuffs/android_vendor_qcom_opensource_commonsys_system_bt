@@ -471,9 +471,7 @@ static void avdt_msg_bld_discover_rsp(uint8_t** p, tAVDT_MSG* p_msg) {
 static void avdt_msg_bld_svccap(uint8_t** p, tAVDT_MSG* p_msg) {
   tAVDT_CFG cfg;
 
-  /* make sure the delay report category is not reported */
   memcpy(&cfg, p_msg->svccap.p_cfg, sizeof(tAVDT_CFG));
-  cfg.psc_mask &= ~AVDT_PSC_DELAY_RPT;
   avdt_msg_bld_cfg(p, &cfg);
 }
 
@@ -629,6 +627,8 @@ static uint8_t avdt_msg_prs_cfg(tAVDT_CFG* p_cfg, uint8_t* p, uint16_t len,
         break;
 
       case AVDT_CAT_DELAY_RPT:
+        AVDT_TRACE_DEBUG("%s: Remote device supports delay reporting",
+                         __func__);
         break;
 
       default:
@@ -1531,6 +1531,7 @@ void avdt_msg_ind(tAVDT_CCB* p_ccb, BT_HDR* p_buf) {
     /* get and verify signal */
     AVDT_MSG_PRS_SIG(p, sig);
     msg.hdr.sig_id = sig;
+    AVDT_TRACE_DEBUG("sig = %d ", sig);
     if ((sig == 0) || (sig > AVDT_SIG_MAX)) {
       AVDT_TRACE_WARNING("Dropping msg sig=%d msg_type:%d", sig, msg_type);
       ok = false;
@@ -1580,6 +1581,8 @@ void avdt_msg_ind(tAVDT_CCB* p_ccb, BT_HDR* p_buf) {
       err = avdt_msg_prs_rej(&msg, p, sig);
       evt = avdt_msg_rej_2_evt[sig - 1];
     }
+
+    AVDT_TRACE_DEBUG("evt = %d", evt);
 
     /* if parsing failed */
     if (err != 0) {

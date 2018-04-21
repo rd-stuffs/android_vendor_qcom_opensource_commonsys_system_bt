@@ -684,7 +684,8 @@ void bta_av_co_audio_open(tBTA_AV_HNDL hndl, uint16_t mtu) {
 void bta_av_co_audio_close(tBTA_AV_HNDL hndl) {
   tBTA_AV_CO_PEER* p_peer;
 
-  APPL_TRACE_DEBUG("%s", __func__);
+  APPL_TRACE_DEBUG("%s hndl = 0x%x", __func__, hndl);
+  btif_av_reset_audio_delay();
 
   /* Retrieve the peer info */
   p_peer = bta_av_co_get_peer(hndl);
@@ -806,6 +807,7 @@ void bta_av_co_audio_drop(tBTA_AV_HNDL hndl) {
  ******************************************************************************/
 void bta_av_co_audio_delay(tBTA_AV_HNDL hndl, uint16_t delay) {
   APPL_TRACE_ERROR("%s: handle: x%x, delay:0x%x", __func__, hndl, delay);
+  btif_av_set_audio_delay(delay);
 }
 
 void bta_av_co_audio_update_mtu(tBTA_AV_HNDL hndl, uint16_t mtu) {
@@ -863,7 +865,7 @@ static bool bta_av_co_audio_protect_has_scmst(uint8_t num_protect,
   return false;
 }
 
-bool bta_av_co_audio_is_aac_enabled(RawAddress *remote_bdaddr) {
+bool bta_av_co_audio_is_aac_wl_enabled(RawAddress *remote_bdaddr) {
 
   int retval;
   bool res = FALSE;
@@ -872,8 +874,7 @@ bool bta_av_co_audio_is_aac_enabled(RawAddress *remote_bdaddr) {
   BTIF_TRACE_DEBUG("%s: property_get: bt.a2dp.aac_whitelist: %s, retval: %d",
                                   __func__, is_whitelist_by_default, retval);
   if (!strncmp(is_whitelist_by_default, "true", 4)) {
-      if (interop_match_addr(INTEROP_ENABLE_AAC_CODEC, remote_bdaddr))
-          res = TRUE;
+      res = TRUE;
     }
 
     return res;
@@ -947,18 +948,26 @@ static tBTA_AV_CO_SINK* bta_av_co_audio_set_codec(tBTA_AV_CO_PEER* p_peer) {
   // Select the codec
   for (const auto& iter : bta_av_co_cb.codecs->orderedSourceCodecs()) {
     APPL_TRACE_DEBUG("%s: trying codec %s", __func__, iter->name().c_str());
-    if (bt_split_a2dp_enabled && (!strcmp(iter->name().c_str(),"AAC")) && (interop_match_addr(INTEROP_DISABLE_AAC_CODEC, &p_peer->addr)))
-    {
-      APPL_TRACE_DEBUG("AAC is not supported for this remote device");
-    }
-    else if (bt_split_a2dp_enabled && (!strcmp(iter->name().c_str(),"AAC")) && bta_av_co_audio_is_aac_enabled(&p_peer->addr))
-    {
-      APPL_TRACE_DEBUG("AAC is supported for this remote device");
-      p_sink = bta_av_co_audio_codec_selected(*iter, p_peer);
-    }
-    else
-    {
-     p_sink = bta_av_co_audio_codec_selected(*iter, p_peer);
+    if (bta_av_co_audio_is_aac_wl_enabled(&p_peer->addr)) {
+      if ((!strcmp(iter->name().c_str(),"AAC")) && (!interop_match_addr(INTEROP_ENABLE_AAC_CODEC, &p_peer->addr)))
+      {
+        APPL_TRACE_DEBUG("This device is not present in white-list remote devices");
+      }
+      else
+      {
+       APPL_TRACE_DEBUG("AAC is supported for this WL remote device");
+       p_sink = bta_av_co_audio_codec_selected(*iter, p_peer);
+      }
+    } else {
+      if ((!strcmp(iter->name().c_str(),"AAC")) && (interop_match_addr(INTEROP_DISABLE_AAC_CODEC, &p_peer->addr)))
+      {
+        APPL_TRACE_DEBUG("AAC is not supported for this BL remote device");
+      }
+      else
+      {
+       APPL_TRACE_DEBUG("This device is not present in Black-list remote devices");
+       p_sink = bta_av_co_audio_codec_selected(*iter, p_peer);
+      }
     }
     if (p_sink != NULL) {
       APPL_TRACE_DEBUG("%s: selected codec %s", __func__, iter->name().c_str());
@@ -1463,7 +1472,7 @@ bool bta_av_co_is_scrambling_enabled() {
   uint8_t no_of_freqs = 0;
   uint8_t *freqs = NULL;
   char value[PROPERTY_VALUE_MAX] = {'\0'};
-  osi_property_get("persist.vendor.bt.splita2dp.44_1_war", value, "false");
+  osi_property_get("persist.vendor.bt.splita2dp.44_1_war", value, "true");
 
   if(strcmp(value, "true")) {
     return false;
