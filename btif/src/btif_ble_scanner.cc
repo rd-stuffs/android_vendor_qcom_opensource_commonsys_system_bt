@@ -378,10 +378,7 @@ class BleScannerInterfaceImpl : public BleScannerInterface {
   void ScanFilterAdd(int filter_index, std::vector<ApcfCommand> filters,
                      FilterConfigCallback cb) override {
     int action = 0;
-    for (ApcfCommand filter : filters) {
-      if(filter.type == BTM_BLE_PF_LOCAL_NAME)
-        filter.data = filter.name;
-
+	for (const ApcfCommand& filter : filters) {
       ScanFilterAddRemove(action, filter.type, filter_index, filter.company,
               filter.company_mask, &filter.uuid, &filter.uuid_mask,
               &filter.address, filter.addr_type, filter.data, filter.data_mask,
