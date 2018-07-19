@@ -81,9 +81,6 @@
 #include "device/include/controller.h"
 #include "btif_bat.h"
 #include "bta/av/bta_av_int.h"
-#ifdef BT_IOT_LOGGING_ENABLED
-#include "btif_iot_config.h"
-#endif
 
 extern bool isDevUiReq;
 bool isBitRateChange = false;
@@ -574,7 +571,7 @@ static void btif_av_collission_timer_timeout(UNUSED_ATTR void *data) {
   btif_sm_state_t av_state;
   RawAddress av_address;
 
-  if(!btif_storage_is_device_bonded(target_bda)){
+  if(btif_storage_is_device_bonded(target_bda) != BT_STATUS_SUCCESS){
     BTIF_TRACE_IMP("btif_av_collission_timer_timeout: not bonded device ");
     return;
   }else{
@@ -729,12 +726,6 @@ static bool btif_av_state_idle_handler(btif_sm_event_t event, void* p_data, int 
         btif_av_cb[index].peer_bda = *connect_req_p->target_bda;
         BTA_AvOpen(btif_av_cb[index].peer_bda, btif_av_cb[index].bta_handle, true,
                    BTA_SEC_AUTHENTICATE, connect_req_p->uuid);
-#ifdef BT_IOT_LOGGING_ENABLED
-        btif_iot_config_addr_set_int(btif_av_cb[index].peer_bda, IOT_CONF_KEY_A2DP_ROLE,
-            (connect_req_p->uuid == UUID_SERVCLASS_AUDIO_SOURCE) ? IOT_CONF_VAL_A2DP_ROLE_SINK :
-            IOT_CONF_VAL_A2DP_ROLE_SOURCE);
-        btif_iot_config_addr_int_add_one(btif_av_cb[index].peer_bda, IOT_CONF_KEY_A2DP_CONN_COUNT);
-#endif
 #if (TWS_ENABLED == TRUE)
       BTIF_TRACE_EVENT("update tws device status");
       btif_av_cb[index].tws_device = BTM_SecIsTwsPlusDev(btif_av_cb[index].peer_bda.address);
@@ -780,12 +771,8 @@ static bool btif_av_state_idle_handler(btif_sm_event_t event, void* p_data, int 
         btif_av_cb[index].peer_bda = ((tBTA_AV*)p_data)->pend.bd_addr;
 
       // Only for AVDTP connection request move to opening state
-      if (event == BTA_AV_PENDING_EVT) {
-#ifdef BT_IOT_LOGGING_ENABLED
-        btif_iot_config_addr_int_add_one(btif_av_cb[index].peer_bda, IOT_CONF_KEY_A2DP_CONN_COUNT);
-#endif
+      if (event == BTA_AV_PENDING_EVT)
         btif_sm_change_state(btif_av_cb[index].sm_handle, BTIF_AV_STATE_OPENING);
-      }
 
       if (bt_av_src_callbacks != NULL) {
         BTIF_TRACE_DEBUG("Calling connection priority callback ");
@@ -975,9 +962,6 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
       btif_report_connection_state(BTAV_CONNECTION_STATE_DISCONNECTED,
                                    &(btif_av_cb[index].peer_bda));
       btif_sm_change_state(btif_av_cb[index].sm_handle, BTIF_AV_STATE_IDLE);
-#ifdef BT_IOT_LOGGING_ENABLED
-      btif_iot_config_addr_int_add_one(btif_av_cb[index].peer_bda, IOT_CONF_KEY_A2DP_CONN_FAIL_COUNT);
-#endif
       break;
 
     case BTA_AV_OPEN_EVT: {
@@ -1044,9 +1028,6 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
         }
         state = BTAV_CONNECTION_STATE_DISCONNECTED;
         av_state = BTIF_AV_STATE_IDLE;
-#ifdef BT_IOT_LOGGING_ENABLED
-        btif_iot_config_addr_int_add_one(btif_av_cb[index].peer_bda, IOT_CONF_KEY_A2DP_CONN_FAIL_COUNT);
-#endif
       }
       if (p_bta_data->open.status != BTA_AV_SUCCESS &&
               p_bta_data->open.status != BTA_AV_FAIL_SDP) {
@@ -1168,10 +1149,6 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
       btif_av_check_and_start_collission_timer(index);
       btif_sm_change_state(btif_av_cb[index].sm_handle, BTIF_AV_STATE_IDLE);
       btif_report_connection_state_to_ba(BTAV_CONNECTION_STATE_DISCONNECTED);
-#ifdef BT_IOT_LOGGING_ENABLED
-      btif_iot_config_addr_int_add_one(btif_av_cb[index].peer_bda,
-              IOT_CONF_KEY_A2DP_CONN_FAIL_COUNT);
-#endif
       break;
 
     case BTIF_AV_DISCONNECT_REQ_EVT:
@@ -1893,6 +1870,13 @@ static bool btif_av_state_started_handler(btif_sm_event_t event, void* p_data,
       } else {
         btif_av_cb[index].flags |= BTIF_AV_FLAG_LOCAL_SUSPEND_PENDING;
       }
+      if (btif_av_cb[index].remote_started) {
+        if (btif_a2dp_source_is_remote_start()) {
+          BTIF_TRACE_DEBUG("%s:cancel remote start timer",__func__);
+          btif_a2dp_source_cancel_remote_start();
+        }
+        btif_av_cb[index].remote_started = false;
+      }
       /* if we were remotely suspended but suspend locally, local suspend
        * always overrides
        */
@@ -2009,7 +1993,7 @@ static bool btif_av_state_started_handler(btif_sm_event_t event, void* p_data,
            * Remote sent avdtp start followed by avdtp suspend, setting
            * the flag not to update the play state to app
            */
-          remote_start_cancelled = true;
+           //remote_start_cancelled = true;
         }
         btif_av_cb[index].remote_started = false;
       }
@@ -2428,7 +2412,7 @@ static void btif_av_handle_event(uint16_t event, char* p_param) {
       }
       BTIF_TRACE_IMP("%s: Remote Started set @ index = %d", __func__, index);
       btif_av_cb[index].remote_started = false;
-      btif_av_cb[index].is_suspend_for_remote_start = true;
+      //btif_av_cb[index].is_suspend_for_remote_start = true;
 #ifdef BTA_AV_SPLIT_A2DP_ENABLED
       if ((bt_split_a2dp_enabled) && (!btif_av_is_playing_on_other_idx(index))) {
         BTIF_TRACE_IMP("%s: Other index is not playing", __func__);
@@ -3266,7 +3250,7 @@ static bt_status_t connect_int(RawAddress* bd_addr, uint16_t uuid) {
   connect_req.uuid = uuid;
   BTIF_TRACE_EVENT("%s", __func__);
 
-  if (!btif_storage_is_device_bonded(bd_addr))
+  if (btif_storage_is_device_bonded(bd_addr) != BT_STATUS_SUCCESS)
   {
     BTIF_TRACE_WARNING("%s()## connect_int ## Device Not Bonded %s \n", __func__,
                       bd_addr->ToString().c_str());
@@ -4694,7 +4678,8 @@ void btif_av_flow_spec_cmd(int index, int bitrate) {
   flow_spec.token_bucket_size = 0x00;  /* bytes - no token bucket is needed*/
   flow_spec.latency = 0xFFFFFFFF;      /* microseconds - default value */
   flow_spec.peak_bandwidth = bitrate/8;/*bytes per second */
-  BTM_FlowSpec (btif_av_cb[index].peer_bda, &flow_spec, NULL);
+  //Sending Flow_spec has been taken care whenever event:BTIF_AV_START_STREAM_REQ_EVT comes.
+  //BTM_FlowSpec (btif_av_cb[index].peer_bda, &flow_spec, NULL);
   APPL_TRACE_DEBUG("%s peak_bandwidth %d",__func__, flow_spec.peak_bandwidth);
 }
 #if (TWS_ENABLED == TRUE)

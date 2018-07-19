@@ -84,9 +84,6 @@
 #if (BTA_AR_INCLUDED == TRUE)
 #include "bta_ar_api.h"
 #endif
-#ifdef BT_IOT_LOGGING_ENABLED
-#include "btif/include/btif_iot_config.h"
-#endif
 
 /*****************************************************************************
  *  Constants
@@ -432,7 +429,8 @@ static void bta_av_update_flow_spec(tBTA_AV_SCB* p_scb) {
   }
   APPL_TRACE_DEBUG("codec_name %s peak_bandwidth %d",codec_name,
                                 flow_spec.peak_bandwidth);
-  BTM_FlowSpec (p_scb->peer_addr, &flow_spec, NULL);
+  //Sending Flow_spec has been taken care whenever event:BTIF_AV_START_STREAM_REQ_EVT comes.
+  //BTM_FlowSpec (p_scb->peer_addr, &flow_spec, NULL);
 }
 
 /*******************************************************************************
@@ -840,12 +838,8 @@ static void bta_av_a2dp_sdp_cback(bool found, tA2DP_Service* p_service) {
   } else {
     p_msg->hdr.event =
         (found) ? BTA_AV_SDP_DISC_OK_EVT : BTA_AV_SDP_DISC_FAIL_EVT;
-    if (found && (p_service != NULL)) {
+    if (found && (p_service != NULL))
       p_scb->avdt_version = p_service->avdt_version;
-#ifdef BT_IOT_LOGGING_ENABLED
-      btif_iot_config_addr_set_hex_if_greater(p_scb->peer_addr, IOT_CONF_KEY_A2DP_VERSION, p_scb->avdt_version, 2);
-#endif
-    }
     else
       p_scb->avdt_version = 0x00;
   }
@@ -1359,17 +1353,10 @@ void bta_av_config_ind(tBTA_AV_SCB* p_scb, tBTA_AV_DATA* p_data) {
     p_info->seid = p_data->str_msg.msg.config_ind.int_seid;
 
     /* Sep type of Peer will be oppsite role to our local sep */
-    if (local_sep == AVDT_TSEP_SRC) {
+    if (local_sep == AVDT_TSEP_SRC)
       p_info->tsep = AVDT_TSEP_SNK;
-#ifdef BT_IOT_LOGGING_ENABLED
-      btif_iot_config_addr_set_int(p_scb->peer_addr, IOT_CONF_KEY_A2DP_ROLE, IOT_CONF_VAL_A2DP_ROLE_SINK);
-#endif
-    } else if (local_sep == AVDT_TSEP_SNK) {
+    else if (local_sep == AVDT_TSEP_SNK)
       p_info->tsep = AVDT_TSEP_SRC;
-#ifdef BT_IOT_LOGGING_ENABLED
-      btif_iot_config_addr_set_int(p_scb->peer_addr, IOT_CONF_KEY_A2DP_ROLE, IOT_CONF_VAL_A2DP_ROLE_SOURCE);
-#endif
-    }
 
     p_scb->role |= BTA_AV_ROLE_AD_ACP;
     p_scb->cur_psc_mask = p_evt_cfg->psc_mask;
@@ -2139,6 +2126,7 @@ void bta_av_getcap_results(tBTA_AV_SCB* p_scb, tBTA_AV_DATA* p_data) {
   uint8_t media_type;
   tAVDT_SEP_INFO* p_info = &p_scb->sep_info[p_scb->sep_info_idx];
   uint16_t uuid_int; /* UUID for which connection was initiatied */
+  tA2DP_CODEC_TYPE codec_type;
 
   if (p_scb == NULL)
   {
@@ -2153,16 +2141,26 @@ void bta_av_getcap_results(tBTA_AV_SCB* p_scb, tBTA_AV_DATA* p_data) {
     return;
   }
 
+
+  media_type = A2DP_GetMediaType(p_scb->p_cap->codec_info);
+  codec_type = A2DP_GetCodecType(p_scb->p_cap->codec_info);
+  APPL_TRACE_DEBUG("%s: num_codec %d", __func__, p_scb->p_cap->num_codec);
+  APPL_TRACE_DEBUG("%s: media type: x%x, x%x, codec_type: %x,min bitpool: %x", __func__,
+                    media_type, p_scb->media_type, codec_type, p_scb->p_cap->codec_info[5]);
+  if (codec_type ==A2DP_MEDIA_CT_SBC ) {
+    if ((p_scb->p_cap->codec_info[5]) < A2DP_SBC_IE_MIN_BITPOOL) {
+      p_scb->p_cap->codec_info[5] = A2DP_SBC_IE_MIN_BITPOOL;
+      APPL_TRACE_DEBUG("%s: Set min bitpool: %x", __func__, p_scb->p_cap->codec_info[5]);
+    }
+  }
+
   memcpy(&cfg, &p_scb->cfg, sizeof(tAVDT_CFG));
   cfg.num_codec = 1;
   cfg.num_protect = p_scb->p_cap->num_protect;
   memcpy(cfg.codec_info, p_scb->p_cap->codec_info, AVDT_CODEC_SIZE);
   memcpy(cfg.protect_info, p_scb->p_cap->protect_info, AVDT_PROTECT_SIZE);
-  media_type = A2DP_GetMediaType(p_scb->p_cap->codec_info);
 
-  APPL_TRACE_DEBUG("%s: num_codec %d", __func__, p_scb->p_cap->num_codec);
-  APPL_TRACE_DEBUG("%s: media type x%x, x%x", __func__, media_type,
-                   p_scb->media_type);
+  APPL_TRACE_DEBUG("%s: min bitpool: %x", __func__, p_scb->p_cap->codec_info[5]);
   A2DP_DumpCodecInfo(p_scb->cfg.codec_info);
 
   /* if codec present and we get a codec configuration */

@@ -44,6 +44,7 @@
 #include "osi/include/osi.h"
 #include "smp_api.h"
 #include "btif/include/btif_storage.h"
+#include "stack_config.h"
 
 extern bool aes_cipher_msg_auth_code(BT_OCTET16 key, uint8_t* input,
                                      uint16_t length, uint16_t tlen,
@@ -1504,6 +1505,7 @@ void btm_ble_link_sec_check(const RawAddress& bd_addr,
                             tBTM_BLE_SEC_REQ_ACT* p_sec_req_act) {
   tBTM_SEC_DEV_REC* p_dev_rec = btm_find_dev(bd_addr);
   uint8_t req_sec_level = BTM_LE_SEC_NONE, cur_sec_level = BTM_LE_SEC_NONE;
+  bool le_fresh_pairing_enabled = false;
 
   BTM_TRACE_DEBUG("btm_ble_link_sec_check auth_req =0x%x", auth_req);
 
@@ -1540,7 +1542,14 @@ void btm_ble_link_sec_check(const RawAddress& bd_addr,
         cur_sec_level = BTM_LE_SEC_NONE;
     }
 
-    if (cur_sec_level >= req_sec_level) {
+    if(stack_config_get_interface()->get_pts_le_fresh_pairing_enabled()) {
+      if (cur_sec_level == req_sec_level) {
+        BTM_TRACE_DEBUG("LE fresh pairing enabled");
+        le_fresh_pairing_enabled = true;
+      }
+    }
+
+    if (!le_fresh_pairing_enabled && (cur_sec_level >= req_sec_level)) {
       /* To avoid re-encryption on an encrypted link for an equal condition
        * encryption */
       *p_sec_req_act = BTM_BLE_SEC_REQ_ACT_ENCRYPT;
@@ -1615,10 +1624,11 @@ tBTM_STATUS btm_ble_set_encryption(const RawAddress& bd_addr,
           break;
         }
       }
-
-      if (SMP_Pair(bd_addr) == SMP_STARTED) {
-        cmd = BTM_CMD_STARTED;
-        p_rec->sec_state = BTM_SEC_STATE_AUTHENTICATING;
+      if(!stack_config_get_interface()->get_pts_le_sec_request_disabled()) {
+        if (SMP_Pair(bd_addr) == SMP_STARTED) {
+          cmd = BTM_CMD_STARTED;
+          p_rec->sec_state = BTM_SEC_STATE_AUTHENTICATING;
+        }
       }
       break;
 
@@ -2053,9 +2063,20 @@ void btm_ble_conn_complete(uint8_t* p, UNUSED_ATTR uint16_t evt_len,
  *
  *****************************************************************************/
 void btm_ble_create_ll_conn_complete(uint8_t status) {
-  if (status != HCI_SUCCESS) {
-    btm_ble_set_conn_st(BLE_CONN_IDLE);
-    btm_ble_update_mode_operation(HCI_ROLE_UNKNOWN, NULL, status);
+  if (status == HCI_SUCCESS) return;
+
+  btm_ble_set_conn_st(BLE_CONN_IDLE);
+  btm_ble_update_mode_operation(HCI_ROLE_UNKNOWN, NULL, status);
+
+  VLOG(1) << "LE Create Connection attempt failed, status=0x"
+          << std::hex << status;
+
+  if (status == HCI_ERR_COMMAND_DISALLOWED) {
+    /* There is already either direct connect, or whitelist connection
+     * pending, but we don't know which one, or to which state should we
+     * transition now. This can be triggered only in case of rare race
+     * condition. Crash to recover. */
+    LOG(FATAL) << "LE Create Connection - command disallowed";
   }
 }
 /*****************************************************************************
