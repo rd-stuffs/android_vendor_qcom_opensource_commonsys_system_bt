@@ -1985,7 +1985,7 @@ static void btif_rc_upstreams_evt(uint16_t event, tAVRC_COMMAND* pavrc_cmd,
     {
         btrc_player_attr_t player_attr[BTRC_MAX_ELEM_ATTR_SIZE];
         uint8_t player_attr_num;
-        BTIF_TRACE_DEBUG("PLAYER_APP_VALUE PDU 0x13 = %d",pavrc_cmd->get_cur_app_val.num_attr);
+        BTIF_TRACE_DEBUG("PLAYER_APP_VALUE PDU 0x13 = %d ",pavrc_cmd->get_cur_app_val.num_attr);
         if ((pavrc_cmd->get_cur_app_val.num_attr == 0) ||
               (pavrc_cmd->get_cur_app_val.num_attr > BTRC_MAX_ELEM_ATTR_SIZE))
         {
@@ -2081,6 +2081,20 @@ static void btif_rc_upstreams_evt(uint16_t event, tAVRC_COMMAND* pavrc_cmd,
           pavrc_cmd->get_elem_attrs.num_attr,
           (btrc_media_attr_t*)pavrc_cmd->get_elem_attrs.attrs,
           BTRC_MAX_ELEM_ATTR_SIZE, element_attrs);
+      int ver = AVRC_REV_INVALID;
+      ver = sdp_get_stored_avrc_tg_version (rc_addr.address);
+      if ((!(p_dev->rc_features & BTA_AV_FEAT_CA)) ||
+              (ver < AVRC_REV_1_6) || (ver == AVRC_REV_INVALID))
+      {
+        BTIF_TRACE_DEBUG("remove cover art element if remote doesn't support avrcp1.6");
+        for(int index=0; index<num_attr; index++) {
+          if(element_attrs[index] == AVRC_MEDIA_ATTR_ID_COVER_ART) {
+            if(index < (num_attr-1))
+               element_attrs[index] = element_attrs[num_attr-1];
+            num_attr--;
+          }
+        }
+      }
       if (num_attr == 0) {
         BTIF_TRACE_ERROR(
             "%s: No valid attributes requested in GET_ELEMENT_ATTRIBUTES",
@@ -2088,15 +2102,6 @@ static void btif_rc_upstreams_evt(uint16_t event, tAVRC_COMMAND* pavrc_cmd,
         send_reject_response(p_dev->rc_handle, label, pavrc_cmd->pdu,
                              AVRC_STS_BAD_PARAM, pavrc_cmd->cmd.opcode);
         return;
-      }
-      int ver = AVRC_REV_INVALID;
-      ver = sdp_get_stored_avrc_tg_version (rc_addr.address);
-      if ((!(p_dev->rc_features & BTA_AV_FEAT_CA)) ||
-              (ver < AVRC_REV_1_6) || (ver == AVRC_REV_INVALID))
-      {
-          BTIF_TRACE_DEBUG("remove cover art element if remote doesn't support avrcp1.6");
-          if (num_attr == AVRC_MAX_NUM_MEDIA_ATTR_ID)
-              num_attr--;
       }
       fill_pdu_queue(IDX_GET_ELEMENT_ATTR_RSP, ctype, label, true, p_dev, pavrc_cmd->pdu);
       HAL_CBACK(bt_rc_callbacks, get_element_attr_cb, num_attr, element_attrs,
@@ -2157,11 +2162,6 @@ static void btif_rc_upstreams_evt(uint16_t event, tAVRC_COMMAND* pavrc_cmd,
 
     case AVRC_PDU_SET_ADDRESSED_PLAYER: {
       fill_pdu_queue(IDX_SET_ADDR_PLAYER_RSP, ctype, label, true, p_dev, pavrc_cmd->pdu);
-      if (!bluetooth::headset::btif_hf_is_call_vr_idle()) {
-          BTIF_TRACE_EVENT(" %s() call active and setbrowsed player called, reject ", __func__);
-          set_addressed_player_rsp(&rc_addr, (btrc_status_t)ERR_PLAYER_NOT_ADDRESED);
-          return;
-      }
       HAL_CBACK(bt_rc_callbacks, set_addressed_player_cb,
                 pavrc_cmd->addr_player.player_id, &rc_addr);
     } break;
@@ -2221,6 +2221,20 @@ static void btif_rc_upstreams_evt(uint16_t event, tAVRC_COMMAND* pavrc_cmd,
           pavrc_cmd->get_attrs.attr_count,
           (btrc_media_attr_t*)pavrc_cmd->get_attrs.p_attr_list,
           BTRC_MAX_ELEM_ATTR_SIZE, item_attrs);
+      int ver = AVRC_REV_INVALID;
+      ver = sdp_get_stored_avrc_tg_version (rc_addr.address);
+      if ((!(p_dev->rc_features & BTA_AV_FEAT_CA)) ||
+              (ver < AVRC_REV_1_6) || (ver == AVRC_REV_INVALID))
+      {
+        BTIF_TRACE_DEBUG("remove cover art element if remote doesn't support avrcp1.6");
+        for(int index=0; index<num_attr; index++) {
+          if(item_attrs[index] == AVRC_MEDIA_ATTR_ID_COVER_ART) {
+            if(index < (num_attr-1))
+               item_attrs[index] = item_attrs[num_attr-1];
+            num_attr--;
+          }
+        }
+      }
       if (num_attr == 0) {
         BTIF_TRACE_ERROR(
             "%s: No valid attributes requested in GET_ITEM_ATTRIBUTES",
@@ -2228,15 +2242,6 @@ static void btif_rc_upstreams_evt(uint16_t event, tAVRC_COMMAND* pavrc_cmd,
         send_reject_response(p_dev->rc_handle, label, pavrc_cmd->pdu,
                              AVRC_STS_BAD_PARAM, pavrc_cmd->cmd.opcode);
         return;
-      }
-      int ver = AVRC_REV_INVALID;
-      ver = sdp_get_stored_avrc_tg_version (rc_addr.address);
-      if ((!(p_dev->rc_features & BTA_AV_FEAT_CA)) ||
-              (ver < AVRC_REV_1_6) || (ver == AVRC_REV_INVALID))
-      {
-          BTIF_TRACE_DEBUG("remove cover art element if remote doesn't support avrcp1.6");
-          if (num_attr == AVRC_MAX_NUM_MEDIA_ATTR_ID)
-              num_attr--;
       }
       fill_pdu_queue(IDX_GET_ITEM_ATTR_RSP, ctype, label, true, p_dev, pavrc_cmd->pdu);
       BTIF_TRACE_DEBUG("%s: GET_ITEM_ATTRIBUTES: num_attr: %d", __func__,
@@ -2574,7 +2579,11 @@ static bt_status_t get_play_status_rsp(RawAddress* bd_addr,
   {
       BTIF_TRACE_ERROR("%s: clear remote suspend flag: %d",__FUNCTION__, av_index);
       btif_av_clear_remote_suspend_flag();
-      btif_dispatch_sm_event(BTIF_AV_START_STREAM_REQ_EVT, NULL, 0);
+      if(bluetooth::headset::btif_hf_check_if_sco_connected() == BT_STATUS_SUCCESS) {
+         BTIF_TRACE_ERROR("Ignore sending avdtp_start due to avrcp playing state since sco is present.");
+      } else {
+         btif_dispatch_sm_event(BTIF_AV_START_STREAM_REQ_EVT, NULL, 0);
+      }
   }
 
   avrc_rsp.get_play_status.pdu = AVRC_PDU_GET_PLAY_STATUS;
@@ -2957,6 +2966,10 @@ static bt_status_t register_notification_rsp_sho_mcast(
           (btif_av_check_flag_remote_suspend(av_index))) {
           BTIF_TRACE_ERROR("%s: clear remote suspend flag: %d",__FUNCTION__,av_index );
           btif_av_clear_remote_suspend_flag();
+          if (bluetooth::headset::btif_hf_check_if_sco_connected() == BT_STATUS_SUCCESS) {
+               BTIF_TRACE_ERROR("Ignore sending avdtp_start due to avrcp playing state since sco is present.");
+               break;
+            }
           btif_dispatch_sm_event(BTIF_AV_START_STREAM_REQ_EVT, NULL, 0);
       }
       break;
@@ -3069,6 +3082,10 @@ static bt_status_t register_notification_rsp(
         {
             BTIF_TRACE_ERROR("%s: clear remote suspend flag: %d",__FUNCTION__,av_index );
             btif_av_clear_remote_suspend_flag();
+            if (bluetooth::headset::btif_hf_check_if_sco_connected() == (BT_STATUS_SUCCESS)) {
+               BTIF_TRACE_ERROR("Ignore sending avdtp_start due to avrcp playing state since sco is present.");
+               break;
+            }
             btif_dispatch_sm_event(BTIF_AV_START_STREAM_REQ_EVT, NULL, 0);
         }
         break;
@@ -3208,11 +3225,12 @@ static bt_status_t get_folder_items_list_rsp(RawAddress* bd_addr,
     /* create single item and build response iteratively for all num_items */
     for (item_cnt = 0; item_cnt < num_items; item_cnt++) {
       cur_item = &p_items[item_cnt];
-      item.item_type = p_items->item_type;
+      item.item_type = cur_item->item_type;
       /* build respective item based on item_type. All items should be of same
        * type within
        * a response */
-      switch (p_items->item_type) {
+      BTIF_TRACE_DEBUG("cur_item->item_type:%d,p_items->item_type:%d",cur_item->item_type,p_items->item_type);
+      switch (cur_item->item_type) {
         case AVRC_ITEM_PLAYER: {
           item.u.player.name.charset_id = cur_item->player.charset_id;
           memcpy(&(item.u.player.features), &(cur_item->player.features),
@@ -6654,6 +6672,10 @@ static bt_status_t update_play_status_to_stack(btrc_play_status_t play_state) {
       return BT_STATUS_FAIL;
     }
     btif_av_clear_remote_suspend_flag();
+   if (bluetooth::headset::btif_hf_check_if_sco_connected() == BT_STATUS_SUCCESS) {
+         BTIF_TRACE_ERROR("Ignore sending avdtp_start due to avrcp playing state since sco is present.");
+         return BT_STATUS_SUCCESS;
+     }
     btif_dispatch_sm_event(BTIF_AV_START_STREAM_REQ_EVT, NULL, 0);
   }
   return BT_STATUS_SUCCESS;
