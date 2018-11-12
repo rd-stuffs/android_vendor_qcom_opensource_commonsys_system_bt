@@ -66,6 +66,7 @@
 #include "bta_av_api.h"
 #include "bta_av_int.h"
 #include "l2c_api.h"
+#include "log/log.h"
 #include "osi/include/list.h"
 #include "osi/include/log.h"
 #include "osi/include/osi.h"
@@ -100,6 +101,10 @@
 
 #ifndef AVRC_CONNECT_RETRY_DELAY_MS
 #define AVRC_CONNECT_RETRY_DELAY_MS 2000
+#endif
+
+#ifndef BTA_AV_RC_DISC_RETRY_DELAY_MS
+#define BTA_AV_RC_DISC_RETRY_DELAY_MS 3500
 #endif
 
 struct blacklist_entry
@@ -649,7 +654,15 @@ void bta_av_rc_opened(tBTA_AV_CB* p_cb, tBTA_AV_DATA* p_data) {
     if (p_cb->features & BTA_AV_FEAT_RCTG)
       rc_open.peer_features |= BTA_AV_FEAT_RCCT;
 
-    bta_av_rc_disc(disc);
+    if (bta_av_cb.disc != 0) {
+      /* AVRC discover db is in use */
+      APPL_TRACE_IMP("%s avrcp sdp is in progress, sdhl=%d, disc=%d", __func__, shdl, disc);
+      if (shdl != 0 && disc != 0)
+        bta_sys_start_timer(p_scb->avrc_ct_timer, BTA_AV_RC_DISC_RETRY_DELAY_MS,
+                            BTA_AV_AVRC_RETRY_DISC_EVT, disc);
+    } else {
+      bta_av_rc_disc(disc);
+    }
   }
   tBTA_AV bta_av_data;
   bta_av_data.rc_open = rc_open;
@@ -896,11 +909,16 @@ tBTA_AV_EVT bta_av_proc_meta_cmd(tAVRC_RESPONSE* p_rc_rsp,
       case AVRC_PDU_GET_CAPABILITIES:
         /* process GetCapabilities command without reporting the event to app */
         evt = 0;
+        if (p_vendor->vendor_len != 5) {
+          android_errorWriteLog(0x534e4554, "111893951");
+          p_rc_rsp->get_caps.status = AVRC_STS_INTERNAL_ERR;
+          break;
+        }
         u8 = *(p_vendor->p_vendor_data + 4);
         p = p_vendor->p_vendor_data + 2;
         p_rc_rsp->get_caps.capability_id = u8;
         BE_STREAM_TO_UINT16(u16, p);
-        if ((u16 != 1) || (p_vendor->vendor_len != 5)) {
+        if (u16 != 1) {
           p_rc_rsp->get_caps.status = AVRC_STS_INTERNAL_ERR;
         } else {
           p_rc_rsp->get_caps.status = AVRC_STS_NO_ERROR;
@@ -2150,6 +2168,7 @@ void bta_av_rc_disc_done(UNUSED_ATTR tBTA_AV_DATA* p_data) {
       {
           bta_sys_start_timer(p_scb->avrc_ct_timer, AVRC_CONNECT_RETRY_DELAY_MS,
                                  BTA_AV_SDP_AVRC_DISC_EVT,p_scb->hndl);
+          return;
       }
   }
 #if (BTA_AV_SINK_INCLUDED == TRUE)
@@ -2456,6 +2475,13 @@ void bta_av_rc_disc(uint8_t disc) {
       APPL_TRACE_DEBUG("disc %d", p_cb->disc);
     }
   }
+}
+
+void bta_av_rc_retry_disc(tBTA_AV_DATA* p_data)
+{
+  uint8_t disc = p_data->hdr.layer_specific;
+  APPL_TRACE_IMP("%s: disc=%d", __func__, disc);
+  bta_av_rc_disc(disc);
 }
 
 /*******************************************************************************
