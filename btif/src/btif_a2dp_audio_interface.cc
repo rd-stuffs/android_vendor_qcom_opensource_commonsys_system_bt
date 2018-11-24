@@ -1501,5 +1501,6 @@ void btif_a2dp_audio_interface_deinit() {}
 void btif_a2dp_audio_interface_init() {}
 uint8_t btif_a2dp_audio_interface_get_pending_cmd() { return A2DP_CTRL_CMD_NONE; }
 void btif_a2dp_audio_reset_pending_cmds(void) {}
+void btif_a2dp_update_sink_latency_change() {}
 
 #endif /* ENABLE_SPLIT_A2DP */
