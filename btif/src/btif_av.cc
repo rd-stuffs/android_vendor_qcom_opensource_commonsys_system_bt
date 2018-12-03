@@ -1751,7 +1751,7 @@ static bool btif_av_state_opened_handler(btif_sm_event_t event, void* p_data,
     } break;
 
     case BTIF_AV_CONNECT_REQ_EVT: {
-      if (memcmp((RawAddress*)p_data, &(btif_av_cb[index].peer_bda),
+      if (memcmp(((btif_av_connect_req_t*)p_data)->target_bda, &(btif_av_cb[index].peer_bda),
                  sizeof(btif_av_cb[index].peer_bda)) == 0) {
         BTIF_TRACE_DEBUG("%s: Ignore BTIF_AV_CONNECT_REQ_EVT for same device",
                          __func__);
@@ -2399,6 +2399,15 @@ static void btif_av_handle_event(uint16_t event, char* p_param) {
       return;
 
     case BTIF_AV_CONNECT_REQ_EVT:
+      if (p_param != NULL) {
+        btif_av_connect_req_t* connect_req_p = (btif_av_connect_req_t*)p_param;
+        bt_addr = connect_req_p->target_bda;
+        index = btif_av_idx_by_bdaddr(bt_addr);
+        if (index == btif_max_av_clients) {
+          index = 0;
+        }
+        BTIF_TRACE_DEBUG("%s: BTIF_AV_CONNECT_REQ_EVT on idx = %d", __func__, index);
+      }
       break;
 
     case BTIF_AV_SOURCE_CONFIG_REQ_EVT:
@@ -2716,6 +2725,8 @@ static void btif_av_handle_event(uint16_t event, char* p_param) {
        * Directly call the RC handler as we cannot
        * associate any AV handle to it.
        */
+      BTIF_TRACE_DEBUG("%s: BTA_AV_RC_CLOSE_EVT: peer_addr=%s", __func__,
+                  p_bta_data->rc_close.peer_addr.ToString().c_str());
       index = btif_av_idx_by_bdaddr(&p_bta_data->rc_close.peer_addr);
       if (index == btif_max_av_clients)
         btif_rc_handler(event, (tBTA_AV*)p_bta_data);
