@@ -115,10 +115,12 @@ extern bool btif_av_is_device_disconnecting();
 extern int btif_get_is_remote_started_idx();
 extern bool btif_av_is_playing_on_other_idx(int current_index);
 extern int btif_get_is_remote_started_idx();
+#if (TWS_ENABLED == TRUE)
 extern bool btif_av_current_device_is_tws();
 extern bool btif_av_is_tws_device_playing(int index);
 extern bool btif_av_is_idx_tws_device(int index);
 extern int btif_av_get_tws_pair_idx(int index);
+#endif
 extern bool reconfig_a2dp;
 extern bool audio_start_awaited;
 bool deinit_pending = false;
@@ -1120,7 +1122,9 @@ uint8_t btif_a2dp_audio_process_request(uint8_t cmd)
           btif_dispatch_sm_event(BTIF_AV_SUSPEND_STREAM_REQ_EVT, NULL, 0);
           status = A2DP_CTRL_ACK_PENDING;
           break;
-        }else if (btif_av_current_device_is_tws()) {
+        }
+#if (TWS_ENABLED == TRUE)
+        else if (btif_av_current_device_is_tws()) {
           //Check if either of the index is streaming
           for (int i = 0; i < btif_max_av_clients; i++) {
             if (btif_av_is_tws_device_playing(i)) {
@@ -1135,6 +1139,7 @@ uint8_t btif_a2dp_audio_process_request(uint8_t cmd)
             break;
           }
         }
+#endif
         /*pls check if we need to add a condition here */
         /* If we are not in started state, just ack back ok and let
          * audioflinger close the channel. This can happen if we are
