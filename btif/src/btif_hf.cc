@@ -482,8 +482,10 @@ static void btif_hf_upstreams_evt(uint16_t event, char* p_param) {
   int idx;
   bool ignore_rfc_fail = false;
   RawAddress bd_addr;
+#if (TWS_AG_ENABLED == TRUE)
   RawAddress peer_eb_addr;
   int peer_eb_dev_type;
+#endif
 
   BTIF_TRACE_IMP("%s: event=%s", __func__, dump_hf_event(event));
   // for BTA_AG_ENABLE_EVT/BTA_AG_DISABLE_EVT, p_data is NULL
