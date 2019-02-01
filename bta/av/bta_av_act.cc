@@ -391,7 +391,7 @@ uint8_t bta_av_rc_create(tBTA_AV_CB* p_cb, uint8_t role, uint8_t shdl,
   tAVRC_CONN_CB ccb;
   RawAddress bda = RawAddress::kAny;
   uint8_t status = BTA_AV_RC_ROLE_ACP;
-  tBTA_AV_SCB* p_scb;
+  tBTA_AV_SCB* p_scb = NULL;
   int i;
   uint8_t rc_handle;
   tBTA_AV_RCB* p_rcb;
@@ -422,7 +422,8 @@ uint8_t bta_av_rc_create(tBTA_AV_CB* p_cb, uint8_t role, uint8_t shdl,
 
   if (AVRC_Open(&rc_handle, &ccb, bda) != AVRC_SUCCESS) {
 #if (BT_IOT_LOGGING_ENABLED == TRUE)
-    device_iot_config_addr_int_add_one(p_scb->peer_addr, IOT_CONF_KEY_AVRCP_CONN_FAIL_COUNT);
+    if (p_scb != NULL)
+      device_iot_config_addr_int_add_one(p_scb->peer_addr, IOT_CONF_KEY_AVRCP_CONN_FAIL_COUNT);
 #endif
     return BTA_AV_RC_HANDLE_NONE;
   }
