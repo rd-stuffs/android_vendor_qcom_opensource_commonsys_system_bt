@@ -807,18 +807,26 @@ static void bta_ag_codec_negotiation_timer_cback(void* data) {
                                            &p_scb->peer_addr);
   /* Announce that codec negotiation failed. */
   bta_ag_sco_codec_nego(p_scb, false);
-
-  // add the device to blacklisting to disable codec negotiation
-  if (is_blacklisted == false) {
-     APPL_TRACE_IMP("%s: blacklisting device %s for codec negotiation",
+#if (TWS_AG_ENABLED == TRUE)
+  if (is_twsp_device(p_scb->peer_addr)) {
+     APPL_TRACE_IMP("%s: tws device %s  codec negotiation fail. skip blacklist",
                     __func__, p_scb->peer_addr.ToString().c_str());
-
-     interop_database_add(INTEROP_DISABLE_CODEC_NEGOTIATION,
-                        &p_scb->peer_addr, 3);
   } else {
-     APPL_TRACE_IMP("%s: dev %s is already blacklisted for codec negotiation",
+#endif
+  // add the device to blacklisting to disable codec negotiation
+    if (is_blacklisted == false) {
+      APPL_TRACE_IMP("%s: blacklisting device %s for codec negotiation",
                     __func__, p_scb->peer_addr.ToString().c_str());
+
+      interop_database_add(INTEROP_DISABLE_CODEC_NEGOTIATION,
+                         &p_scb->peer_addr, 3);
+    } else {
+       APPL_TRACE_IMP("%s: dev %s is already blacklisted for codec negotiation",
+                     __func__, p_scb->peer_addr.ToString().c_str());
+    }
+#if (TWS_AG_ENABLED == TRUE)
   }
+#endif
   /* call app callback */
   bta_ag_cback_sco(p_scb, BTA_AG_AUDIO_CLOSE_EVT);
 }
@@ -1100,7 +1108,10 @@ void bta_ag_sco_event(tBTA_AG_SCB* p_scb, uint8_t event) {
 #if (TWS_AG_ENABLED == TRUE)
           //Atleast try connecting to 2nd twsp
           if (is_twsp_device(p_scb->peer_addr) && !p_scb->rmt_sco_req) {
-             dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_OPEN_E);
+             tBTA_AG_SCB *other_scb = get_other_twsp_scb((p_scb->peer_addr));
+             if (other_scb && twsp_sco_active(other_scb) == false) {
+                 dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_OPEN_E);
+             }
           }
           p_scb->rmt_sco_req = FALSE;
 #endif
@@ -1124,7 +1135,7 @@ void bta_ag_sco_event(tBTA_AG_SCB* p_scb, uint8_t event) {
                     if(is_rfc_connected(p_scb)) {
                         //trigger twsp peer listen state
                         //As the SCO state is in listen state, it must be for the TWS+ peerdevice
-                        bta_ag_twsp_sco_event(p_scb,BTA_AG_SCO_OPEN_E);
+                        bta_ag_twsp_sco_event(p_scb,BTA_AG_SCO_LISTEN_E);
                     } else {
                         APPL_TRACE_WARNING("%s: twsp peer rfc is not connected", __func__);
                     }
@@ -1188,8 +1199,11 @@ void bta_ag_sco_event(tBTA_AG_SCB* p_scb, uint8_t event) {
 #if (TWS_AG_ENABLED == TRUE)
           //Once SCO connected
           if (is_twsp_device(p_scb->peer_addr) && !p_scb->rmt_sco_req) {
-              //trigger the secondary SCO connection for TWS
-              dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_OPEN_E);
+              tBTA_AG_SCB *other_scb = get_other_twsp_scb((p_scb->peer_addr));
+              if (other_scb && twsp_sco_active(other_scb) == false) {
+                  //trigger the secondary SCO connection for TWS
+                  dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_OPEN_E);
+              }
           }
           p_scb->rmt_sco_req = FALSE;
 #endif
@@ -1202,7 +1216,10 @@ void bta_ag_sco_event(tBTA_AG_SCB* p_scb, uint8_t event) {
           /* 1st earbud SCO is closed
              atleast try opening the secondary SCO */
           if (is_twsp_device(p_scb->peer_addr)&&!p_scb->rmt_sco_req) {
-             dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_OPEN_E);
+              tBTA_AG_SCB *other_scb = get_other_twsp_scb((p_scb->peer_addr));
+              if (other_scb && twsp_sco_active(other_scb) == false) {
+                 dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_OPEN_E);
+              }
           }
           p_scb->rmt_sco_req = FALSE;
 #endif
@@ -1242,7 +1259,6 @@ void bta_ag_sco_event(tBTA_AG_SCB* p_scb, uint8_t event) {
           }
 #if (TWS_AG_ENABLED == TRUE)
           if (is_twsp_device(p_scb->peer_addr)) {
-             dispatch_event_twsp_peer_device(p_scb, BTA_AG_SCO_SHUTDOWN_E);
              /* if the current device is TWS move it to SHUTDOWN as sms
               * operate independently*/
              p_sco->state = BTA_AG_SCO_SHUTDOWN_ST;
@@ -2120,11 +2136,15 @@ void bta_ag_api_set_active_device(tBTA_AG_DATA* p_data) {
     APPL_TRACE_ERROR("%s: empty device", __func__);
     return;
   }
-  //When HFP active device is changes, exit sniff for the new active device
+  //When HFP active device is changed, exit sniff for the new active device
   active_device_addr = p_data->api_set_active_device.active_device_addr;
   tBTA_AG_SCB* p_scb = bta_ag_scb_by_idx(bta_ag_idx_by_bdaddr(&(active_device_addr)));
-  bta_sys_busy(BTA_ID_AG, p_scb->app_id, active_device_addr);
-  bta_sys_idle(BTA_ID_AG, p_scb->app_id, active_device_addr);
+  if (p_scb == NULL) {
+      APPL_TRACE_WARNING("%s: p_scb is NULL", __func__);
+  } else {
+      bta_sys_busy(BTA_ID_AG, p_scb->app_id, active_device_addr);
+      bta_sys_idle(BTA_ID_AG, p_scb->app_id, active_device_addr);
+  }
 }
 
 /*******************************************************************************
