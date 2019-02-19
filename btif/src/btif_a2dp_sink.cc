@@ -492,6 +492,7 @@ static void btif_a2dp_sink_decoder_update_event(
 
   // clear earlier alarm (if any) and media packet queue
   alarm_free(btif_a2dp_sink_cb.decode_alarm);
+  APPL_TRACE_DEBUG("%s: clear decode alarm.", __func__);
   btif_a2dp_sink_cb.decode_alarm = NULL;
   btif_a2dp_sink_audio_rx_flush_event();
 
@@ -584,6 +585,7 @@ void btif_handle_incoming_encoded_data() {
 }
 
 uint8_t btif_a2dp_sink_enqueue_buf(BT_HDR* p_pkt) {
+  BTIF_TRACE_VERBOSE("%s: rx_flush: %d", __func__, btif_a2dp_sink_cb.rx_flush);
   if (btif_a2dp_sink_cb.rx_flush) /* Flush enabled, do not enqueue */
     return fixed_queue_length(btif_a2dp_sink_cb.rx_audio_queue);
 
