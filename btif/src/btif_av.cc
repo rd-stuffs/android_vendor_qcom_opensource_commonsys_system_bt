@@ -144,6 +144,8 @@ typedef enum {
 #define BITRATE_PARAM_ID 1
 #define BITSPERSAMPLE_PARAM_ID 2
 
+/* Delay in setting Audio Config if SETCONFIG is received before clearing previous config */
+#define BTIF_DELAYED_UPDATE_DECODER_MS 150
 /*****************************************************************************
  *  Local type definitions
  *****************************************************************************/
@@ -234,6 +236,7 @@ static alarm_t *av_coll_detected_timer = NULL;
 static bool isA2dpSink = false;
 static bool codec_config_update_enabled = false;
 bool is_codec_config_dump = false;
+alarm_t* config_alarm;
 
 /*SPLITA2DP */
 bool bt_split_a2dp_enabled = false;
@@ -422,6 +425,7 @@ const char* dump_av_sm_event_name(btif_av_sm_event_t event) {
     CASE_RETURN_STR(BTIF_AV_OFFLOAD_START_REQ_EVT)
     CASE_RETURN_STR(BTA_AV_OFFLOAD_STOP_RSP_EVT)
     CASE_RETURN_STR(BTIF_AV_SETUP_CODEC_REQ_EVT)
+    CASE_RETURN_STR(BTA_AV_SINK_MEDIA_CFG_EVT)
     default:
       return "UNKNOWN_EVENT";
   }
@@ -1045,6 +1049,11 @@ static bool btif_av_state_idle_handler(btif_sm_event_t event, void* p_data, int 
       btif_a2dp_on_offload_started(BTA_AV_FAIL);
       break;
 
+    case BTA_AV_SINK_MEDIA_CFG_EVT: {
+      tBTA_AV_MEDIA* p_data_cur = (tBTA_AV_MEDIA *)p_data;
+      btif_a2dp_sink_update_decoder((uint8_t*)(p_data_cur->avk_config.codec_info));
+      } break;
+
     default:
       BTIF_TRACE_WARNING("%s: unhandled event=%s", __func__,
                          dump_av_sm_event_name((btif_av_sm_event_t)event));
@@ -1339,6 +1348,11 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
     case BTA_AV_RC_OPEN_EVT:
        btif_rc_handler(event, (tBTA_AV*)p_data);;
        break;
+
+    case BTA_AV_SINK_MEDIA_CFG_EVT: {
+      tBTA_AV_MEDIA* p_data_cur = (tBTA_AV_MEDIA *)p_data;
+      btif_a2dp_sink_update_decoder((uint8_t*)(p_data_cur->avk_config.codec_info));
+      } break;
 
     case BTA_AV_DELAY_REPORT_EVT:
       /* Initial delay report after avdtp stream configuration */
@@ -3502,7 +3516,29 @@ static void bte_av_sink_media_callback(tBTA_AV_EVT event,
       btif_av_sink_config_req_t config_req;
 
       /* send a command to BT Media Task */
-      btif_a2dp_sink_update_decoder((uint8_t*)(p_data->avk_config.codec_info));
+      btif_sm_state_t av_state = btif_sm_get_state(btif_av_cb[index].sm_handle);
+      BTIF_TRACE_DEBUG("%s: AV State = %d", __func__, av_state);
+      /* If remote device updates Codec configuration then btif_a2dp_sink_update_decoder
+       * will be invoked depending on in which state updated SET_CONFIGURATION is received
+       * AV STATE:
+       *    STARTED/OPENED - Delay updating config so that previous configurartin is cleared
+       *                     by the time we update new configuaration.
+       *    OPENING/IDLE   - Run btif_a2dp_sink_update_decoder in AV State Machine Context
+       *                     so that it is scheduled after previous configuarion is cleared.
+       */
+      if (av_state == BTIF_AV_STATE_STARTED || av_state == BTIF_AV_STATE_OPENED) {
+        config_alarm = alarm_new("btif.a2dp_sink_set_config");
+        if (config_alarm != NULL) {
+          alarm_set(config_alarm, BTIF_DELAYED_UPDATE_DECODER_MS,
+             (alarm_callback_t)btif_a2dp_sink_update_decoder,
+             (uint8_t*)(p_data->avk_config.codec_info));
+        } else {
+          btif_a2dp_sink_update_decoder((uint8_t*)(p_data->avk_config.codec_info));
+        }
+      } else {
+        btif_transfer_context(btif_av_handle_event, BTA_AV_SINK_MEDIA_CFG_EVT,
+            (char *)p_data, sizeof(tBTA_AV_MEDIA), NULL);
+      }
       /* Switch to BTIF context */
       config_req.sample_rate =
           A2DP_GetTrackSampleRate(p_data->avk_config.codec_info);
