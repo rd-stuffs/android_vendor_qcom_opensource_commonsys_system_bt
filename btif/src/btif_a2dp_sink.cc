@@ -50,6 +50,8 @@
 /* In case of A2DP Sink, we will delay start by 5 AVDTP Packets */
 #define MAX_A2DP_DELAYED_START_FRAME_COUNT 5
 
+#define MAX_SINK_MEDIA_WORKQUEUE_COUNT 1024
+
 enum {
   BTIF_A2DP_SINK_STATE_OFF,
   BTIF_A2DP_SINK_STATE_STARTING_UP,
@@ -155,7 +157,8 @@ bool btif_a2dp_sink_startup(void) {
   APPL_TRACE_EVENT("## A2DP SINK START MEDIA THREAD ##");
 
   /* Start A2DP Sink media task */
-  btif_a2dp_sink_cb.worker_thread = thread_new("btif_a2dp_sink_worker_thread");
+  btif_a2dp_sink_cb.worker_thread =
+     thread_new_sized("btif_a2dp_sink_worker_thread", MAX_SINK_MEDIA_WORKQUEUE_COUNT);
   if (btif_a2dp_sink_cb.worker_thread == NULL) {
     APPL_TRACE_ERROR("%s: unable to start up media thread", __func__);
     btif_a2dp_sink_state = BTIF_A2DP_SINK_STATE_OFF;
@@ -489,6 +492,7 @@ static void btif_a2dp_sink_decoder_update_event(
 
   // clear earlier alarm (if any) and media packet queue
   alarm_free(btif_a2dp_sink_cb.decode_alarm);
+  APPL_TRACE_DEBUG("%s: clear decode alarm.", __func__);
   btif_a2dp_sink_cb.decode_alarm = NULL;
   btif_a2dp_sink_audio_rx_flush_event();
 
@@ -581,6 +585,7 @@ void btif_handle_incoming_encoded_data() {
 }
 
 uint8_t btif_a2dp_sink_enqueue_buf(BT_HDR* p_pkt) {
+  BTIF_TRACE_VERBOSE("%s: rx_flush: %d", __func__, btif_a2dp_sink_cb.rx_flush);
   if (btif_a2dp_sink_cb.rx_flush) /* Flush enabled, do not enqueue */
     return fixed_queue_length(btif_a2dp_sink_cb.rx_audio_queue);
 
