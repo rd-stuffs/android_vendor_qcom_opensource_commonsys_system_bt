@@ -2018,7 +2018,7 @@ static bool btif_av_state_started_handler(btif_sm_event_t event, void* p_data,
             }
           }
           BTIF_TRACE_DEBUG("%s: is_playing: %d", __func__, is_playing);
-          if (!is_playing) {
+          if ((!is_playing) && (btif_av_is_connected_on_other_idx(index))) {
             BTIF_TRACE_DEBUG("%s: start streaming when both are in opened state", __func__);
             btif_initiate_sink_handoff(index, true);
             btif_report_audio_state(BTAV_AUDIO_STATE_STARTED, &(btif_av_cb[index].peer_bda));
