@@ -5761,7 +5761,7 @@ bool btif_is_a2dp_sink_handoff_required(int idx) {
   int cur_playing_idx = btif_av_get_current_playing_dev_idx();
   BTIF_TRACE_DEBUG("%s: index = %d, cur_playing_idx= %d",
                           __func__, idx, cur_playing_idx);
-  if (cur_playing_idx != btif_max_av_clients && idx != cur_playing_idx) {
+  if (idx != btif_max_av_clients && idx != cur_playing_idx) {
     return true;
   }
   return false;
