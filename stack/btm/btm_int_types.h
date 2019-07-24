@@ -18,6 +18,7 @@
 #ifndef BTM_INT_TYPES_H
 #define BTM_INT_TYPES_H
 
+#include "btif/include/btif_bqr.h"
 #include "btm_api_types.h"
 #include "btm_ble_api_types.h"
 #include "btm_ble_int_types.h"
@@ -604,6 +605,12 @@ typedef struct {
   tBTM_SEC_BLE ble;
   tBTM_LE_CONN_PRAMS conn_params;
 
+#define BTM_SEC_SMP_NO_PAIR_PENDING 0x00
+#define BTM_SEC_SMP_PAIR_PENDING 0x01
+#define BTM_SEC_LINK_KEY_TYPE_UNAUTH 0x02
+#define BTM_SEC_LINK_KEY_TYPE_AUTH   0x04
+  uint8_t sec_smp_pair_pending;
+
 #if (BTM_DISC_DURING_RS == TRUE)
 #define BTM_SEC_RS_NOT_PENDING 0 /* Role Switch not in progress */
 #define BTM_SEC_RS_PENDING 1     /* Role Switch in progress */
@@ -784,6 +791,9 @@ typedef bool CONNECTION_TYPE;
 
 #endif /* (L2CAP_UCD_INCLUDED == TRUE) */
 
+// Bluetooth Quality Report - Report receiver
+typedef void(tBTM_BT_QUALITY_REPORT_RECEIVER)(uint8_t len, uint8_t* p_stream);
+
 /* Define a structure to hold all the BTM data
 */
 
@@ -893,6 +903,8 @@ typedef struct {
                                    tBTM_SEC_QUEUE_ENTRY format */
 
   char state_temp_buffer[BTM_STATE_BUFFER_SIZE];
+  // BQR Receiver
+  tBTM_BT_QUALITY_REPORT_RECEIVER* p_bqr_report_receiver;
 } tBTM_CB;
 
 /* security action for L2CAP COC channels */
