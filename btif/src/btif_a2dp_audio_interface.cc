@@ -116,14 +116,20 @@ std::condition_variable mCV;
 /*BTIF AV helper */
 extern int btif_get_is_remote_started_idx();
 extern bool btif_av_is_playing_on_other_idx(int current_index);
+extern bool btif_avk_is_playing_on_other_idx(int current_index);
 extern bool btif_av_is_local_started_on_other_idx(int current_index);
 extern bool btif_av_is_remote_started_set(int index);
 extern int btif_get_is_remote_started_idx();
 extern bool btif_av_current_device_is_tws();
+extern bool btif_avk_current_device_is_tws();
 extern bool btif_av_is_tws_device_playing(int index);
-extern bool btif_av_is_idx_tws_device(int index);
-extern int btif_av_get_tws_pair_idx(int index);
 extern bool btif_av_is_tws_suspend_triggered(int index);
+extern bool btif_avk_is_tws_suspend_triggered(int index);
+extern bool btif_avk_is_tws_device_playing(int index);
+extern bool btif_av_is_idx_tws_device(int index);
+extern bool btif_avk_is_idx_tws_device(int index);
+extern int btif_av_get_tws_pair_idx(int index);
+extern int btif_avk_get_tws_pair_idx(int index);
 extern bool reconfig_a2dp;
 extern bool audio_start_awaited;
 extern bool tws_defaultmono_supported;
@@ -137,11 +143,13 @@ static void btif_a2dp_audio_send_mcast_status();
 static void btif_a2dp_audio_send_num_connected_devices();
 static void btif_a2dp_audio_send_connection_status();
 extern int btif_max_av_clients;
+extern int btif_max_avk_clients;
 extern bool enc_update_in_progress;
 extern tBTA_AV_HNDL btif_av_get_av_hdl_from_idx(int idx);
 extern void btif_av_reset_reconfig_flag();
 extern tBTIF_A2DP_SOURCE_VSC btif_a2dp_src_vsc;
 extern bool btif_av_is_state_opened(int i);
+extern bool btif_avk_is_state_opened(int i);
 extern bool btif_av_is_tws_enable_monocfg();
 
 //extern void bta_av_vendor_offload_stop(void);
@@ -990,8 +998,8 @@ uint8_t btif_a2dp_audio_process_request(uint8_t cmd)
           APPL_TRACE_DEBUG("%s: remote started idx = %d latest playing = %d",__func__,
                            remote_start_idx, latest_playing_idx);
 #if (TWS_ENABLED == TRUE)
-          if (btif_av_current_device_is_tws() &&
-            btif_av_is_idx_tws_device(remote_start_idx)) {
+          if ((btif_av_current_device_is_tws() || btif_avk_current_device_is_tws())  &&
+            (btif_av_is_idx_tws_device(remote_start_idx) || btif_avk_is_idx_tws_device(remote_start_idx))) {
             APPL_TRACE_DEBUG("%s:Remote started by TWS+ device, force cancel",__func__);
             reset_remote_start = true;
           }
@@ -1065,8 +1073,9 @@ uint8_t btif_a2dp_audio_process_request(uint8_t cmd)
               status = A2DP_CTRL_ACK_FAILURE;
             }
 #if (TWS_ENABLED == TRUE)
-            if (btif_av_current_device_is_tws() &&
-              reset_remote_start && !btif_av_is_tws_device_playing(latest_playing_idx)) {
+            if ((btif_av_current_device_is_tws()|| btif_avk_current_device_is_tws()) &&
+              reset_remote_start && (!btif_av_is_tws_device_playing(latest_playing_idx)
+                                     ||!btif_avk_is_tws_device_playing(latest_playing_idx))) {
               int pair_idx = btif_av_get_tws_pair_idx(latest_playing_idx);
               if (pair_idx < btif_max_av_clients && btif_av_is_state_opened(pair_idx)) {
                 APPL_TRACE_DEBUG("%s:Other TWS+ is not start at idx %d, sending start_req",__func__,pair_idx);
@@ -1074,7 +1083,7 @@ uint8_t btif_a2dp_audio_process_request(uint8_t cmd)
               }
               status = A2DP_CTRL_ACK_PENDING;
             } else if (remote_start_idx < btif_max_av_clients &&
-              reset_remote_start && btif_av_current_device_is_tws()) {
+              reset_remote_start && (btif_av_current_device_is_tws()||btif_avk_current_device_is_tws())) {
               uint8_t hdl = 0;
               int pair_idx = remote_start_idx;
               if (remote_start_flag) {
@@ -1169,11 +1178,11 @@ uint8_t btif_a2dp_audio_process_request(uint8_t cmd)
           btif_dispatch_sm_event(BTIF_AV_SUSPEND_STREAM_REQ_EVT, NULL, 0);
           status = A2DP_CTRL_ACK_PENDING;
           break;
-        }else if (btif_av_current_device_is_tws()) {
+        }else if (btif_av_current_device_is_tws() || btif_avk_current_device_is_tws()) {
           //Check if either of the index is streaming
           for (int i = 0; i < btif_max_av_clients; i++) {
-            if (btif_av_is_tws_device_playing(i) &&
-              !btif_av_is_tws_suspend_triggered(i)) {
+            if ((btif_av_is_tws_device_playing(i) && !btif_av_is_tws_suspend_triggered(i)) || 
+                (btif_avk_is_tws_device_playing(i) && !btif_avk_is_tws_suspend_triggered(i))) {
               APPL_TRACE_DEBUG("Suspend TWS+ stream on index %d",i);
               btif_dispatch_sm_event(BTIF_AV_SUSPEND_STREAM_REQ_EVT, NULL, 0);
               status = A2DP_CTRL_ACK_PENDING;

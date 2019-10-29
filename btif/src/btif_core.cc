@@ -1248,6 +1248,7 @@ tBTA_SERVICE_MASK btif_get_enabled_services_mask(void) {
  *
  ******************************************************************************/
 bt_status_t btif_enable_service(tBTA_SERVICE_ID service_id) {
+  BTIF_TRACE_DEBUG("%s: service_id:%d", __func__,service_id);
   tBTA_SERVICE_ID* p_id = &service_id;
 
   /* If BT is enabled, we need to switch to BTIF context and trigger the

@@ -107,7 +107,7 @@ RawAddress ba_addr({0xCE, 0xFA, 0xCE, 0xFA, 0xCE, 0xFA});
 
 /* Number of BTIF-AV control blocks */
 /* Now supports Two AV connections. */
-#define BTIF_AV_NUM_CB       5
+#define BTIF_AV_NUM_CB       AVDT_NUM_LINKS 
 #define HANDLE_TO_INDEX(x) ((x & BTA_AV_HNDL_MSK) - 1)
 #define INVALID_INDEX        -1
 
@@ -369,12 +369,12 @@ extern void btif_rc_clear_priority(RawAddress address);
 extern void btif_rc_send_pause_command(RawAddress bda);
 extern uint16_t btif_dm_get_br_edr_links();
 extern uint16_t btif_dm_get_le_links();
-extern void btif_a2dp_on_idle();
+extern void btif_a2dp_on_idle(int service_id);
 extern fixed_queue_t* btu_general_alarm_queue;
 extern void btif_media_send_reset_vendor_state();
 extern tBTIF_A2DP_SOURCE_VSC btif_a2dp_src_vsc;
 extern uint8_t* bta_av_co_get_peer_codec_info(uint8_t hdl);
-extern bool bta_avk_is_avdt_sync(uint16_t handle);
+extern bool bta_av_is_avdt_sync(uint16_t handle);
 
 /*****************************************************************************
  * Local helper functions
@@ -500,7 +500,7 @@ static void btif_initiate_av_open_timer_timeout(void* data) {
     connect_req.target_bda = bd_add;
     if (bt_av_sink_callbacks != NULL)
       connect_req.uuid = UUID_SERVCLASS_AUDIO_SINK;
-    else if (bt_av_src_callbacks != NULL)
+    if (bt_av_src_callbacks != NULL)
       connect_req.uuid = UUID_SERVCLASS_AUDIO_SOURCE;
     btif_dispatch_sm_event(BTIF_AV_CONNECT_REQ_EVT, (char*)&connect_req,
                            sizeof(connect_req));
@@ -880,7 +880,6 @@ static void btif_av_process_cached_src_codec_config(int index) {
  ******************************************************************************/
 
 static bool btif_av_state_idle_handler(btif_sm_event_t event, void* p_data, int index) {
-  char a2dp_role[255] = "false";
   bool other_device_connected = false;
   BTIF_TRACE_IMP("%s event:%s flags %x on index %x", __func__,
                    dump_av_sm_event_name((btif_av_sm_event_t)event),
@@ -923,14 +922,8 @@ static bool btif_av_state_idle_handler(btif_sm_event_t event, void* p_data, int 
       btif_av_cb[index].fake_suspend_rsp = false;
       for (int i = 0; i < btif_max_av_clients; i++)
         btif_av_cb[i].dual_handoff = false;
-      osi_property_get("persist.vendor.service.bt.a2dp.sink", a2dp_role, "false");
-      if (!strncmp("false", a2dp_role, 5)) {
         btif_av_cb[index].peer_sep = AVDT_TSEP_SNK;
         isPeerA2dpSink = true;
-      } else {
-        btif_av_cb[index].peer_sep = AVDT_TSEP_SRC;
-        isPeerA2dpSink = false;
-      }
       /* This API will be called twice at initialization
       ** Idle can be moved when device is disconnected too.
       ** Take care of other connected device here.*/
@@ -943,7 +936,7 @@ static bool btif_av_state_idle_handler(btif_sm_event_t event, void* p_data, int 
       if (other_device_connected == false) {
         BTIF_TRACE_EVENT("reset A2dp states in IDLE ");
         bta_av_co_init(btif_av_cb[index].codec_priorities, offload_enabled_codecs_config_);
-        btif_a2dp_on_idle();
+        btif_a2dp_on_idle(BTA_A2DP_SOURCE_SERVICE_ID);
       } else {
         //There is another AV connection, update current playin
         BTIF_TRACE_EVENT("idle state for index %d init_co", index);
@@ -1311,7 +1304,7 @@ static bool btif_av_state_opening_handler(btif_sm_event_t event, void* p_data,
           BTIF_TRACE_DEBUG("remote supports 3 mbps");
           btif_av_cb[index].edr_3mbps = true;
         }
-        btif_av_cb[index].avdt_sync = bta_avk_is_avdt_sync(btif_av_cb[index].bta_handle);
+        btif_av_cb[index].avdt_sync = bta_av_is_avdt_sync(btif_av_cb[index].bta_handle);
 
         if (btif_av_cb[index].avdt_sync) {
           BTIF_TRACE_DEBUG("avdt_sync TRUE");
@@ -4977,9 +4970,7 @@ bt_status_t btif_av_execute_service(bool b_enable) {
   bool delay_report_enabled = false;
   char value[PROPERTY_VALUE_MAX] = {'\0'};
   tBTA_AV_FEAT feat_delay_rpt = 0;
-  char a2dp_role[255] = "false";
   tA2DP_CTRL_CMD pending_cmd = A2DP_CTRL_CMD_NONE;
-  osi_property_get("persist.vendor.service.bt.a2dp.sink", a2dp_role, "false");
   BTIF_TRACE_DEBUG("%s(): enable: %d", __func__, b_enable);
   if (b_enable) {
     osi_property_get("persist.bluetooth.disabledelayreports", value, "false");
@@ -5048,11 +5039,7 @@ bt_status_t btif_av_execute_service(bool b_enable) {
             }
             btif_a2dp_source_on_stopped(NULL);
             btif_sm_change_state(btif_av_cb[i].sm_handle, BTIF_AV_STATE_IDLE);
-            if (!strncmp("false", a2dp_role, 5)) {
               btif_queue_advance_by_uuid(UUID_SERVCLASS_AUDIO_SOURCE, &(btif_av_cb[i].peer_bda));
-            } else {
-              btif_queue_advance_by_uuid(UUID_SERVCLASS_AUDIO_SINK, &(btif_av_cb[i].peer_bda));
-            }
           }
         }
         btif_sm_shutdown(btif_av_cb[i].sm_handle);
@@ -5620,8 +5607,6 @@ void btif_av_clear_remote_suspend_flag(void) {
  ******************************************************************************/
 void btif_av_move_idle(RawAddress bd_addr) {
   int index =0;
-  char a2dp_role[255] = "false";
-  osi_property_get("persist.vendor.service.bt.a2dp.sink", a2dp_role, "false");
   /* inform the application that ACL is disconnected and move to idle state */
   index = btif_av_idx_by_bdaddr(&bd_addr);
   if (index == btif_max_av_clients) {
@@ -5638,11 +5623,7 @@ void btif_av_move_idle(RawAddress bd_addr) {
     BTA_AvClose(btif_av_cb[index].bta_handle);
     btif_av_check_and_start_collission_timer(index);
     btif_sm_change_state(btif_av_cb[index].sm_handle, BTIF_AV_STATE_IDLE);
-    if (!strncmp("false", a2dp_role, 5)) {
-      btif_queue_advance_by_uuid(UUID_SERVCLASS_AUDIO_SOURCE, &(btif_av_cb[index].peer_bda));
-    } else {
-      btif_queue_advance_by_uuid(UUID_SERVCLASS_AUDIO_SINK, &(btif_av_cb[index].peer_bda));
-    }
+    btif_queue_advance_by_uuid(UUID_SERVCLASS_AUDIO_SOURCE, &(btif_av_cb[index].peer_bda));
     btif_report_connection_state_to_ba(BTAV_CONNECTION_STATE_DISCONNECTED);
   }
 }
@@ -6333,10 +6314,6 @@ int64_t btif_get_average_delay() {
 ** Returns          bool
 *******************************************************************************/
 bool btif_device_in_sink_role() {
-    char a2dp_role[6] = "false";
-    osi_property_get("persist.vendor.service.bt.a2dp.sink", a2dp_role, "false");
-    if (!strncmp("true", a2dp_role, 4))
-        return true;
     return false;
 }
 

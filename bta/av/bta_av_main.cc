@@ -348,14 +348,14 @@ tBTA_AV_SCB* bta_av_hndl_to_scb(uint16_t handle) {
 
 /*******************************************************************************
 **
-** Function         bta_avk_is_avdt_sync
+** Function         bta_av_is_avdt_sync
 **
 ** Description      If the current connection supports AVDT1.3
 **
 ** Returns          true for supports AVDT1.3, false for not.
 **
 *******************************************************************************/
-bool bta_avk_is_avdt_sync(uint16_t handle) {
+bool bta_av_is_avdt_sync(uint16_t handle) {
   tBTA_AV_SCB* p_scb = bta_av_hndl_to_scb(handle);
   if (p_scb && (p_scb->avdt_version >= AVDT_VERSION_SYNC))
     return true;
@@ -453,6 +453,34 @@ void bta_av_conn_cback(UNUSED_ATTR uint8_t handle, const RawAddress* bd_addr,
   }
 }
 
+bool bta_av_is_scb_available(void)
+{
+  tBTA_AV_CB   *p_cb = &bta_av_cb;
+  int     xx;
+  uint8_t mask;
+  for(xx=0; xx<BTA_AV_NUM_LINKS; xx++)
+  {
+    mask = 1 << xx;
+    APPL_TRACE_DEBUG(" %s The current conn_lcb: 0x%x index = %d", __func__, p_cb->conn_lcb, xx);
+
+    /* look for a p_lcb with its p_scb registered */
+    if((!(mask & p_cb->conn_lcb)) && (p_cb->p_scb[xx] != NULL))
+    {
+      /* Check if the SCB is Free before using for
+       * ACP connection
+       */
+      if (p_cb->p_scb[xx]->state == BTA_AV_INIT_ST)
+      {
+        APPL_TRACE_DEBUG(" %s SCB is free @ %d", __func__, xx);
+        return true;
+      }
+    }
+  }
+  APPL_TRACE_DEBUG(" %s SCB is not free ", __func__);
+  return false;
+}
+
+
 #if (AVDT_REPORTING == TRUE)
 /*******************************************************************************
  *
@@ -497,18 +525,11 @@ static void bta_av_api_register(tBTA_AV_DATA* p_data) {
   registr.chnl = (tBTA_AV_CHNL)p_data->hdr.layer_specific;
 
   uint16_t profile_initialized = p_data->api_reg.service_uuid;
-  if (profile_initialized == UUID_SERVCLASS_AUDIO_SINK) {
-    p_bta_av_cfg = (tBTA_AV_CFG*)&bta_avk_cfg;
-  } else if (profile_initialized == UUID_SERVCLASS_AUDIO_SOURCE) {
-    p_bta_av_cfg = (tBTA_AV_CFG*)&bta_av_cfg;
-  }
+  
+  p_bta_av_cfg = (tBTA_AV_CFG*)&bta_av_cfg;
 
   APPL_TRACE_DEBUG("%s(): profile: 0x%x, channle: 0x%x", __func__,
                    profile_initialized, registr.chnl);
-  if (p_bta_av_cfg == NULL) {
-    APPL_TRACE_ERROR("AV configuration is null!");
-    return;
-  }
 
   do {
     p_scb = bta_av_alloc_scb(registr.chnl);
@@ -637,6 +658,7 @@ static void bta_av_api_register(tBTA_AV_DATA* p_data) {
         p_scb->seps[xx].av_handle = 0;
       }
 
+      APPL_TRACE_ERROR("%s: codec_index min:max %d:%d", __func__, codec_index_min,codec_index_max);
       /* keep the configuration in the stream control block */
       memcpy(&p_scb->cfg, &cs.cfg, sizeof(tAVDT_CFG));
       for (int i = codec_index_min; i < codec_index_max; i++) {
