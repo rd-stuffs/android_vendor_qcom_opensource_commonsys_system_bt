@@ -24,6 +24,8 @@
 #define LOG_TAG "bt_btif_a2dp_source"
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
+#include "bt_target.h"
+
 #include <base/logging.h>
 #ifndef OS_GENERIC
 #include <cutils/trace.h>
@@ -33,7 +35,16 @@
 #include <algorithm>
 
 #include "audio_a2dp_hw/include/audio_a2dp_hw.h"
+#if (OFF_TARGET_TEST_ENABLED == FALSE)
 #include "audio_hal_interface/a2dp_encoding.h"
+#endif
+
+#if (OFF_TARGET_TEST_ENABLED == TRUE)
+#include "service/a2dp_hal_sim/audio_a2dp_hal.h"
+#include "service/a2dp_hal_sim/audio_a2dp_hal_stub.h"
+using ::bluetooth::audio::a2dp::SessionType;
+#endif
+
 #include "bt_common.h"
 #include "bta_av_ci.h"
 #include "btif_a2dp.h"
@@ -393,6 +404,10 @@ void btif_a2dp_source_on_remote_start(struct alarm_t **remote_start_alarm, int i
   // initiate remote start timer for index basis
   int *arg = NULL;
   arg = (int *) osi_malloc(sizeof(int));
+  if (remote_start_alarm == NULL) {
+    LOG_ERROR(LOG_TAG,"%s:remote start alarm is NULL",__func__);
+    return;
+  }
   *remote_start_alarm = alarm_new("btif.remote_start_task");
   if (!remote_start_alarm || !arg) {
     LOG_ERROR(LOG_TAG,"%s:unable to allocate media alarm",__func__);
