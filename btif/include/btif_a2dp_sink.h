@@ -59,7 +59,11 @@ tA2DP_CHANNEL_COUNT btif_a2dp_sink_get_channel_count(void);
 
 // Update the decoder for the A2DP Sink module.
 // |p_codec_info| contains the new codec information.
-void btif_a2dp_sink_update_decoder(const uint8_t* p_codec_info);
+void btif_a2dp_sink_update_decoder(const uint8_t* p_codec_info, int index);
+
+bool btif_a2dp_sink_check_sho(const uint8_t* p_codec_info, int index);
+
+bool btif_a2dp_sink_check_codec(const uint8_t* p_codec_info);
 
 //stop audio decoding
 void btif_a2dp_sink_audio_handle_stop_decoding();

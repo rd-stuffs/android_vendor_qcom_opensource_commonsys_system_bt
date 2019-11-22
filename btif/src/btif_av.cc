@@ -3939,7 +3939,7 @@ static void bte_av_sink_media_callback(tBTA_AV_EVT event,
       btif_av_sink_config_req_t config_req;
 
       /* send a command to BT Media Task */
-      btif_a2dp_sink_update_decoder((uint8_t*)(p_data->avk_config.codec_info));
+      btif_a2dp_sink_update_decoder((uint8_t*)(p_data->avk_config.codec_info), 0);
       /* Switch to BTIF context */
       config_req.sample_rate =
           A2DP_GetTrackSampleRate(p_data->avk_config.codec_info);
@@ -6366,7 +6366,7 @@ void btif_initiate_sink_handoff(int idx, bool audio_state_changed) {
           /* Before create a new audiotrack, we need to stop and delete old audiotrack. */
           btif_a2dp_sink_audio_handle_stop_decoding();
           btif_a2dp_sink_clear_track_event();
-          btif_a2dp_sink_update_decoder(a2dp_codec_config);
+          btif_a2dp_sink_update_decoder(a2dp_codec_config, 0);
       } else {
           BTIF_TRACE_DEBUG("%s, a2dp_codec_config is NULL", __func__);
       }
