@@ -143,6 +143,7 @@ static void btif_a2dp_source_remote_start_timeout(void* context);
 extern void btif_av_set_offload_status(void);
 
 extern int btif_max_av_clients;
+extern int btif_max_avk_clients;
 extern int btif_get_is_remote_started_idx();
 extern bool audio_start_awaited;
 extern void btif_av_reset_reconfig_flag();

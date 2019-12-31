@@ -48,8 +48,11 @@ cc_library_static {
         "vendor/qcom/opensource/commonsys/bluetooth_ext/system_bt_ext/stack/include",
         "vendor/qcom/opensource/commonsys/bluetooth_ext/vhal/include",
         "vendor/qcom/opensource/commonsys/bluetooth_ext/system_bt_ext/stack/btm",
+        "vendor/qcom/opensource/commonsys/bluetooth_ext/system_bt_ext/bta/include/",
+        "vendor/qcom/opensource/commonsys/bluetooth_ext/system_bt_ext/btif/include/",
         "vendor/qcom/opensource/commonsys-intf/bluetooth/include",
         "vendor/qcom/opensource/commonsys/system/bt/device/include",
+        "system/bt/include",
     ],
     srcs: crypto_toolbox_srcs + [
         "a2dp/a2dp_aac.cc",

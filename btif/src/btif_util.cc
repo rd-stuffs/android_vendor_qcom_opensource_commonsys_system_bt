@@ -44,6 +44,7 @@
 #include "bta_ag_api.h"
 #include "bta_api.h"
 #include "bta_av_api.h"
+#include "bta_avk_api.h"
 #include "bta_hd_api.h"
 #include "bta_hf_client_api.h"
 #include "bta_hh_api.h"
@@ -52,6 +53,7 @@
 #include "btif_dm.h"
 #include "btu.h"
 #include "btif_av.h"
+#include "btif_avk.h"
 #include "btif_twsp_hf.h"
 #if (SWB_ENABLED == TRUE)
 #include "bta_ag_swb.h"
@@ -356,6 +358,23 @@ const char* dump_bt_status(bt_status_t status) {
   }
 }
 
+const char* dump_avk_rc_event(uint8_t event) {
+  switch (event) {
+    CASE_RETURN_STR(BTA_AVK_RC_OPEN_EVT)
+    CASE_RETURN_STR(BTA_AVK_RC_CLOSE_EVT)
+    CASE_RETURN_STR(BTA_AVK_RC_BROWSE_OPEN_EVT)
+    CASE_RETURN_STR(BTA_AVK_RC_BROWSE_CLOSE_EVT)
+    CASE_RETURN_STR(BTA_AVK_REMOTE_CMD_EVT)
+    CASE_RETURN_STR(BTA_AVK_REMOTE_RSP_EVT)
+    CASE_RETURN_STR(BTA_AVK_VENDOR_CMD_EVT)
+    CASE_RETURN_STR(BTA_AVK_VENDOR_RSP_EVT)
+    CASE_RETURN_STR(BTA_AVK_META_MSG_EVT)
+    CASE_RETURN_STR(BTA_AVK_RC_FEAT_EVT)
+    CASE_RETURN_STR(BTIF_AVK_CLEANUP_REQ_EVT)
+    default:
+      return "UNKNOWN_EVENT";
+  }
+}
 const char* dump_rc_event(uint8_t event) {
   switch (event) {
     CASE_RETURN_STR(BTA_AV_RC_OPEN_EVT)

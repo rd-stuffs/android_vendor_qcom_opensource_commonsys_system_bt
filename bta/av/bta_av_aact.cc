@@ -86,7 +86,8 @@
 #include "bta_ar_api.h"
 #endif
 #include "device/include/device_iot_config.h"
-#include "osi/include/allocator.h"
+#include "bta/ar/bta_ar_int_ext.h"
+#include "bta_avk_int.h"
 
 /*****************************************************************************
  *  Constants
@@ -1908,6 +1909,7 @@ void bta_av_connect_req(tBTA_AV_SCB* p_scb, UNUSED_ATTR tBTA_AV_DATA* p_data) {
     return;
   }
 
+  update_avdtp_connection_info(p_scb->peer_addr, AVDT_AR_EXT_CONNECT_REQ_EVT, BTA_AR_EXT_AV_MASK);
   result = AVDT_ConnectReq(p_scb->peer_addr, p_scb->sec_mask,
                   bta_av_dt_cback[p_scb->hdi]);
   if (result != AVDT_SUCCESS) {
@@ -3463,6 +3465,7 @@ void bta_av_rcfg_connect(tBTA_AV_SCB* p_scb, UNUSED_ATTR tBTA_AV_DATA* p_data) {
     /* let bta_av_rcfg_failed report fail */
     bta_av_rcfg_failed(p_scb, NULL);
   } else
+    update_avdtp_connection_info(p_scb->peer_addr, AVDT_AR_EXT_CONNECT_REQ_EVT, BTA_AR_EXT_AV_MASK);
     AVDT_ConnectReq(p_scb->peer_addr, p_scb->sec_mask,
                     bta_av_dt_cback[p_scb->hdi]);
 }
@@ -3494,6 +3497,7 @@ void bta_av_rcfg_discntd(tBTA_AV_SCB* p_scb, UNUSED_ATTR tBTA_AV_DATA* p_data) {
     /* report close event & go to init state */
     bta_av_ssm_execute(p_scb, BTA_AV_STR_DISC_FAIL_EVT, NULL);
   } else
+    update_avdtp_connection_info(p_scb->peer_addr, AVDT_AR_EXT_CONNECT_REQ_EVT, BTA_AR_EXT_AV_MASK);
     AVDT_ConnectReq(p_scb->peer_addr, p_scb->sec_mask,
                     bta_av_dt_cback[p_scb->hdi]);
 }

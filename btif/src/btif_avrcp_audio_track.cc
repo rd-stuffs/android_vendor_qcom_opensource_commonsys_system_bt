@@ -36,15 +36,13 @@ FILE* outputPcmSampleFile;
 char outputFilename[50] = "/data/misc/bluedroid/output_sample.pcm";
 #endif
 
-std::mutex g_audioTrack_mutex;
-
 #define COMPRESSED_AUDIO_BUFFER_SIZE 2048
 
 void* BtifAvrcpAudioTrackCreate(int trackFreq, int channelType) {
   LOG_DEBUG(LOG_TAG, "%s Track.cpp: btCreateTrack freq %d  channel %d",
               __func__, trackFreq, channelType);
   sp<android::AudioTrack> track = NULL;
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
+
 
   track = new android::AudioTrack(
   AUDIO_STREAM_MUSIC, trackFreq, AUDIO_FORMAT_PCM_16_BIT, channelType,
@@ -73,7 +71,6 @@ int BtifAvrcpAudioTrackLatency(void* handle) {
     LOG_ERROR(LOG_TAG, "%s: handle is null!", __func__);
     return 0;
   }
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
   CHECK(trackHolder != NULL);
   CHECK(trackHolder->track != NULL);
@@ -83,14 +80,13 @@ int BtifAvrcpAudioTrackLatency(void* handle) {
 
 void BtifAvrcpAudioTrackStart(void* handle) {
   if (handle == NULL) {
-    LOG_ERROR(LOG_TAG, "%s: handle is null!", __func__);
+    BTIF_TRACE_ERROR("%s: handle is null!", __func__);
     return;
   }
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
   CHECK(trackHolder != NULL);
   CHECK(trackHolder->track != NULL);
-  LOG_VERBOSE(LOG_TAG, "%s Track.cpp: btStartTrack", __func__);
+  BTIF_TRACE_DEBUG("%s Track.cpp: btStartTrack", __func__);
   trackHolder->track->start();
 }
 
@@ -99,7 +95,6 @@ void BtifAvrcpAudioTrackStop(void* handle) {
     LOG_DEBUG(LOG_TAG, "%s handle is null.", __func__);
     return;
   }
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
   if (trackHolder != NULL && trackHolder->track != NULL) {
     LOG_VERBOSE(LOG_TAG, "%s Track.cpp: btStartTrack", __func__);
@@ -112,7 +107,6 @@ void BtifAvrcpAudioTrackDelete(void* handle) {
     LOG_DEBUG(LOG_TAG, "%s handle is null.", __func__);
     return;
   }
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
   if (trackHolder != NULL && trackHolder->track != NULL) {
     LOG_VERBOSE(LOG_TAG, "%s Track.cpp: btStartTrack", __func__);
@@ -132,7 +126,6 @@ void BtifAvrcpAudioTrackPause(void* handle) {
     LOG_DEBUG(LOG_TAG, "%s handle is null.", __func__);
     return;
   }
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
   if (trackHolder != NULL && trackHolder->track != NULL) {
     LOG_VERBOSE(LOG_TAG, "%s Track.cpp: btStartTrack", __func__);
@@ -146,7 +139,6 @@ void BtifAvrcpSetAudioTrackGain(void* handle, float gain) {
     LOG_DEBUG(LOG_TAG, "%s handle is null.", __func__);
     return;
   }
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
   if (trackHolder != NULL && trackHolder->track != NULL) {
     LOG_VERBOSE(LOG_TAG, "%s set gain %f", __func__, gain);
@@ -156,18 +148,19 @@ void BtifAvrcpSetAudioTrackGain(void* handle, float gain) {
 
 int BtifAvrcpAudioTrackWriteData(void* handle, void* audioBuffer,
                                  int bufferlen) {
+  if (handle == NULL) {
+    LOG_DEBUG(LOG_TAG, "%s handle is null.", __func__);
+    return -1;
+  }
   BtifAvrcpAudioTrack* trackHolder = static_cast<BtifAvrcpAudioTrack*>(handle);
-  CHECK(trackHolder != NULL);
-  CHECK(trackHolder->track != NULL);
   int retval = -1;
-  std::lock_guard<std::mutex> lock(g_audioTrack_mutex);
 #if (DUMP_PCM_DATA == TRUE)
   if (outputPcmSampleFile) {
     fwrite((audioBuffer), 1, (size_t)bufferlen, outputPcmSampleFile);
   }
 #endif
   retval = trackHolder->track->write(audioBuffer, (size_t)bufferlen);
-  LOG_VERBOSE(LOG_TAG, "%s Track.cpp: btWriteData len = %d ret = %d", __func__,
+  BTIF_TRACE_DEBUG("%s Track.cpp: btWriteData len = %d ret = %d", __func__,
               bufferlen, retval);
   return retval;
 }
