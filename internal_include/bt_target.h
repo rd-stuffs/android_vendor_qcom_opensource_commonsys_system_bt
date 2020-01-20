@@ -1176,7 +1176,7 @@
 #endif
 
 #ifndef AVDT_NUM_SEPS
-#define AVDT_NUM_SEPS 35
+#define AVDT_NUM_SEPS 50
 #endif
 
 /* Number of transport channels setup by AVDT for all media streams */

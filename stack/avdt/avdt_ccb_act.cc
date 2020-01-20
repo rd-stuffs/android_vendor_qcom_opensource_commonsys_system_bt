@@ -245,9 +245,9 @@ void avdt_ccb_hdl_discover_cmd(tAVDT_CCB* p_ccb, tAVDT_CCB_EVT* p_data) {
   tAVDT_SEP_INFO sep_info[AVDT_NUM_SEPS];
   tAVDT_SCB* p_scb = &avdt_cb.scb[0];
   int i;
-  int num_conn = avdt_scb_get_max_av_client();
-  //int num_codecs = AVDT_NUM_SEPS / num_conn;
-  int num_codecs = ((avdt_ccb_get_num_allocated_seps()) / num_conn);
+  int num_conn = AVDT_NUM_LINKS;
+  int num_codecs = BTAV_A2DP_CODEC_INDEX_MAX;
+
   int effective_num_seps = 0;
   const char *codec_name;
   bt_soc_type_t soc_type = controller_get_interface()->get_soc_type();
@@ -260,13 +260,11 @@ void avdt_ccb_hdl_discover_cmd(tAVDT_CCB* p_ccb, tAVDT_CCB_EVT* p_data) {
   bool aptx_tws_support = false;
   bool codecs_cached = false;
 
-  AVDT_TRACE_WARNING("%s: soc_type: %d", __func__, soc_type);
+  AVDT_TRACE_WARNING("%s: soc_type: %d conn:%d codec:%d, seps allocated:%d", 
+                     __func__, soc_type, num_conn, num_codecs, avdt_ccb_get_num_allocated_seps());
 
   p_data->msg.discover_rsp.p_sep_info = sep_info;
   p_data->msg.discover_rsp.num_seps = 0;
-
-  AVDT_TRACE_WARNING("%s: total connections: %d, total codecs: %d",
-      __func__, num_conn, num_codecs);
 
     /* If this ccb, has done setconf and is doing discover again
      * we should show SEP for which setconfig was done earlier
@@ -329,9 +327,11 @@ void avdt_ccb_hdl_discover_cmd(tAVDT_CCB* p_ccb, tAVDT_CCB_EVT* p_data) {
       APPL_TRACE_DEBUG("Remote supported codecs are not cached");
     }
   }
-  for (; i < AVDT_NUM_SEPS; i++, p_scb++) {
-    if (effective_num_seps == num_codecs)
-      break;
+
+  AVDT_TRACE_WARNING("%s start i:%d",__func__,i);
+  /* for all allocated scbs */
+  int j = 0;
+  for (; j < num_codecs ; i++, j++, p_scb++) {
     if ((p_ccb != NULL) && (p_scb->allocated) && (!p_scb->in_use)) {
       effective_num_seps++;
       codec_name = A2DP_CodecName(p_scb->cs.cfg.codec_info);

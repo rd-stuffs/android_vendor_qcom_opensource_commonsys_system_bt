@@ -42,6 +42,7 @@
 #include "audio_hal_interface/a2dp_encoding.h"
 #endif
 #include "btif_bat.h"
+#include "bta_api.h"
 
 #if (OFF_TARGET_TEST_ENABLED == TRUE)
 #include "service/a2dp_hal_sim/audio_a2dp_hal_stub.h"
@@ -57,12 +58,17 @@ extern void btif_av_reset_reconfig_flag();
 static char a2dp_hal_imp[PROPERTY_VALUE_MAX] = "false";
 extern bool btif_av_current_device_is_tws();
 
-void btif_a2dp_on_idle() {
-  APPL_TRACE_EVENT("## ON A2DP IDLE ## peer_sep = %d", btif_av_get_peer_sep());
-  if (btif_av_get_peer_sep() == AVDT_TSEP_SNK) {
-    btif_a2dp_source_on_idle();
-  } else if (btif_av_get_peer_sep() == AVDT_TSEP_SRC) {
-    btif_a2dp_sink_on_idle();
+void btif_a2dp_on_idle(int service_id) {
+  APPL_TRACE_EVENT("## ON A2DP IDLE ## service_id= %d", service_id);
+  switch (service_id ) {
+      case BTA_A2DP_SOURCE_SERVICE_ID:
+          btif_a2dp_source_on_idle();
+          break;
+      case BTA_A2DP_SINK_SERVICE_ID:
+          btif_a2dp_sink_on_idle();
+          break;
+      default:
+          break;
   }
 }
 

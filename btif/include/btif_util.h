@@ -58,6 +58,7 @@ const char* dump_thread_evt(bt_cb_thread_evt evt);
 const char* dump_av_conn_state(uint16_t event);
 const char* dump_av_audio_state(uint16_t event);
 const char* dump_rc_event(uint8_t event);
+const char* dump_avk_rc_event(uint8_t event);
 const char* dump_rc_notification_event_id(uint8_t event_id);
 const char* dump_rc_pdu(uint8_t pdu);
 
