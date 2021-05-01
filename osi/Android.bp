@@ -53,6 +53,7 @@ cc_library_static {
 // ========================================================
 cc_library_static {
     name: "libosi_qti",
+    cflags: ["-Wno-error=frame-address"],
     defaults: ["fluoride_osi_defaults_qti"],
     // TODO(mcchou): Remove socket_utils sources after platform specific
     // dependencies are abstracted.
