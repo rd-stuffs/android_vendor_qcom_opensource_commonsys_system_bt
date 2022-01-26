@@ -38,6 +38,8 @@
 #include <vector>
 #include "stack_config.h"
 #include <map>
+#include "device/include/interop_config.h"
+#include "device/include/profile_config.h"
 
 #define BTSNOOP_ENABLE_PROPERTY "persist.bluetooth.btsnoopenable"
 #define BTSNOOP_SOCLOG_PROPERTY "persist.vendor.service.bdroid.soclog"
@@ -58,6 +60,7 @@ const uint8_t SCO_HOST_BUFFER_SIZE = 0xff;
 #define MAX_SUPPORTED_SCRAMBLING_FREQ_SIZE 8
 #define MAX_SCRAMBLING_FREQS_SIZE 64
 #define ISO_CHANNEL_HOST_SUPPORT_BIT 32
+#define MIN_ENCRYPTION_KEY_SIZE 7
 #define UNUSED(x) (void)(x)
 
 #define QHS_TRANSPORT_LE_ISO 2
@@ -113,6 +116,7 @@ static bool ble_offload_features_supported;
 static bool simple_pairing_supported;
 static bool secure_connections_supported;
 static bool read_simple_pairing_options_supported;
+static bool hci_write_rf_path_compensation_supported;
 
 //BT features related defines
 static bt_soc_type_t soc_type = BT_SOC_TYPE_DEFAULT;
@@ -443,6 +447,14 @@ static future_t* start_up(void) {
   }
 #endif
 
+  // Set the min encryption key size
+  if (HCI_SET_MIN_ENCRYPTION_KEY_SIZE_SUPPORTED(supported_commands)) {
+    response = AWAIT_COMMAND(packet_factory->make_set_min_encryption_key_size(
+        MIN_ENCRYPTION_KEY_SIZE));
+    packet_parser->parse_set_min_encryption_key_size_response(
+        response);
+  }
+
   ble_supported = last_features_classic_page_index >= 1 &&
                   HCI_LE_HOST_SUPPORTED(features_classic[1].as_array);
   if (ble_supported) {
@@ -556,6 +568,20 @@ static future_t* start_up(void) {
         response, &simple_pairing_options, &maximum_encryption_key_size);
     LOG_DEBUG(LOG_TAG, "%s simple pairing options is 0x%x", __func__,
         simple_pairing_options);
+  }
+
+  // write rf tx & rx path compensation value
+  hci_write_rf_path_compensation_supported =
+             HCI_WRITE_RF_PATH_COMPENSATION_SUPPORTED(supported_commands);
+
+  if(hci_write_rf_path_compensation_supported) {
+    uint16_t tx_path_value = rf_path_loss_values_fetch(RF_PATH_LOSS_ID, RF_TX_PATH_COMPENSATION_VALUE);
+    uint16_t rx_path_value = rf_path_loss_values_fetch(RF_PATH_LOSS_ID, RF_RX_PATH_COMPENSATION_VALUE);
+    response =
+        AWAIT_COMMAND(packet_factory->make_ble_write_rf_path_compensation(tx_path_value, rx_path_value));
+    packet_parser->parse_generic_command_complete(response);
+    LOG_DEBUG(LOG_TAG, "%s HCI write RF compensation tx value : %d, rx value : %d", __func__,
+        tx_path_value, rx_path_value);
   }
 
   if (bt_configstore_intf != NULL) {
@@ -832,6 +858,11 @@ static bool supports_enhanced_accept_synchronous_connection(void) {
   return HCI_ENH_ACCEPT_SYNCH_CONN_SUPPORTED(supported_commands);
 }
 
+static bool supports_set_min_encryption_key_size(void) {
+  assert(readable);
+  return HCI_SET_MIN_ENCRYPTION_KEY_SIZE_SUPPORTED(supported_commands);
+}
+
 static bool supports_ble(void) {
   CHECK(readable);
   return ble_supported;
@@ -901,6 +932,12 @@ static bool supports_ble_iso_broadcaster(void) {
   CHECK(readable);
   CHECK(ble_supported);
   return HCI_LE_ISO_BROADCASTER_SUPPORTED(features_ble.as_array);
+}
+
+static bool supports_ble_periodic_advertising_adi(void) {
+  CHECK(readable);
+  CHECK(ble_supported);
+  return HCI_LE_PERIODIC_ADVERTISING_ADI_SUPPORTED(features_ble.as_array);
 }
 
 static uint16_t get_acl_data_size_classic(void) {
@@ -1152,6 +1189,7 @@ static const controller_t interface = {
     supports_master_slave_role_switch,
     supports_enhanced_setup_synchronous_connection,
     supports_enhanced_accept_synchronous_connection,
+    supports_set_min_encryption_key_size,
 
     supports_ble,
     supports_ble_packet_extension,
@@ -1164,6 +1202,7 @@ static const controller_t interface = {
     supports_ble_periodic_advertising,
     supports_ble_periodic_sync_transfer,
     supports_ble_iso_broadcaster,
+    supports_ble_periodic_advertising_adi,
 
     get_acl_data_size_classic,
     get_acl_data_size_ble,

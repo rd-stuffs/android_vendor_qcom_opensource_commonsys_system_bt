@@ -361,14 +361,14 @@ static bt_status_t btif_gatts_close(int server_if, const RawAddress& bd_addr,
 }
 
 static void on_service_added_cb(uint8_t status, int server_if,
-                                const btgatt_db_element_t* service,
+                                const btgatt_db_element_t *service,
                                 size_t service_count) {
   HAL_CBACK(bt_gatt_callbacks, server->service_added_cb, status, server_if,
             service, service_count);
 }
 
 static void add_service_impl(int server_if,
-                             const btgatt_db_element_t* service,
+                             const btgatt_db_element_t *service,
                              size_t service_count) {
   // TODO(jpawlowski): btif should be a pass through layer, and no checks should
   // be made here. This exception is added only until GATT server code is
@@ -390,8 +390,9 @@ static bt_status_t btif_gatts_add_service(int server_if,
                                           const btgatt_db_element_t* service,
                                           size_t service_count) {
   CHECK_BTGATT_INIT();
-  return do_in_jni_thread(
-      FROM_HERE, Bind(&add_service_impl, server_if, service, service_count));
+  return do_in_jni_thread(FROM_HERE,
+                          Bind(&add_service_impl, server_if,
+                               service, service_count));
 }
 
 static bt_status_t btif_gatts_stop_service(int server_if, int service_handle) {
@@ -407,15 +408,15 @@ static bt_status_t btif_gatts_delete_service(int server_if,
 
 static bt_status_t btif_gatts_send_indication(int server_if,
                                               int attribute_handle, int conn_id,
-                                              int confirm,
-                                              const uint8_t* p_value, size_t value_count) {
+                                              int confirm, const uint8_t* value,
+                                              size_t length) {
   CHECK_BTGATT_INIT();
 
-  vector<unsigned char> value(p_value, p_value + value_count);
-  if (value_count > BTGATT_MAX_ATTR_LEN) value.resize(BTGATT_MAX_ATTR_LEN);
+  if (length > BTGATT_MAX_ATTR_LEN) length = BTGATT_MAX_ATTR_LEN;
 
   return do_in_jni_thread(Bind(&BTA_GATTS_HandleValueIndication, conn_id,
-                               attribute_handle, std::move(value), confirm));
+                               attribute_handle,
+                               std::vector(value, value + length), confirm));
   // TODO: Might need to send an ACK if handle value indication is
   //       invoked without need for confirmation.
 }

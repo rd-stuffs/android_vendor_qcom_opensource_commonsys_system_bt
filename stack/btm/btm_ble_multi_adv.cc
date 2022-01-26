@@ -619,7 +619,7 @@ class BleAdvertisingManagerImpl
               return;
             }
 
-            c->self->SetPeriodicAdvertisingEnable(c->inst_id, true, Bind(
+            c->self->SetPeriodicAdvertisingEnable(c->inst_id, c->periodic_params.enable, Bind(
               [](c_type c, uint8_t status) {
                 if (!c->self) {
                   LOG(INFO) << "Stack was shut down";
@@ -924,7 +924,7 @@ class BleAdvertisingManagerImpl
 
     VLOG(1) << "data is: " << base::HexEncode(data.data(), data.size());
     if ((data.size() > 3) && (data[0] == 3 && data[1] == 0x16
-         && data[2] == 0xdc && data[3] == 0x8f)) {
+         && data[2] == 0x51 && data[3] == 0x18)) {
       VLOG(1) << __func__ << "Broadcast UUID";
       adv_inst[inst_id].skip_rpa_count = 15;
       adv_inst[inst_id].skip_rpa = true;
@@ -958,6 +958,11 @@ class BleAdvertisingManagerImpl
         },
         p_inst, enable, std::move(cb));
 
+    if (enable != 0) {
+      if (!controller_get_interface()->supports_ble_periodic_advertising_adi()) {
+        enable = 1; // use value of 0x01 if ADI is not supported
+      }
+    }
     GetHciInterface()->SetPeriodicAdvertisingEnable(enable, inst_id,
                                                     std::move(enable_cb));
   }
@@ -1094,6 +1099,13 @@ class BleAdvertisingManagerImpl
       p_inst->periodic_enabled = false;
       GetHciInterface()->SetPeriodicAdvertisingEnable(false, inst_id,
                                                       base::DoNothing());
+    }
+
+    if (p_inst->timeout_timer) {
+      VLOG(1) << __func__ << " Cancelling timer for inst_id: " << +inst_id;
+      alarm_cancel(p_inst->timeout_timer);
+      alarm_free(p_inst->timeout_timer);
+      p_inst->timeout_timer = nullptr;
     }
 
     alarm_cancel(p_inst->adv_raddr_timer);
