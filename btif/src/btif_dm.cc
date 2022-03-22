@@ -2382,6 +2382,7 @@ static void btif_dm_upstreams_evt(uint16_t event, char* p_param) {
     case BTA_DM_LE_FEATURES_READ: {
       tBTM_BLE_VSC_CB cmn_vsc_cb;
       bt_local_le_features_t local_le_features;
+      memset(&local_le_features, 0, sizeof(bt_local_le_features_t));
       char buf[512];
       bt_property_t prop;
       prop.type = BT_PROPERTY_LOCAL_LE_FEATURES;
@@ -3820,6 +3821,12 @@ static void btif_dm_ble_auth_cmpl_evt(tBTA_DM_AUTH_CMPL* p_auth_cmpl) {
         status = BT_STATUS_FAIL;
         break;
     }
+  }
+  if ((bd_addr != pairing_cb.static_bdaddr)
+     && (bd_addr != pairing_cb.bd_addr)
+     && (pairing_cb.state == BT_BOND_STATE_BONDING)) {
+     APPL_TRACE_DEBUG("%s ignore bond state changed ", __func__);
+     return ;
   }
   if (state == BT_BOND_STATE_BONDED && bd_addr != pairing_cb.static_bdaddr) {
     // Report RPA bonding state to Java in crosskey paring
