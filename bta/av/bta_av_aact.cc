@@ -386,6 +386,7 @@ static void bta_av_save_addr(tBTA_AV_SCB* p_scb, const RawAddress& b) {
  ******************************************************************************/
 static void notify_start_failed(tBTA_AV_SCB* p_scb) {
   tBTA_AV_START start;
+  memset(&start, 0, sizeof(tBTA_AV_START));
   /* if start failed, clear role */
   p_scb->role &= ~BTA_AV_ROLE_START_INT;
   start.chnl = p_scb->chnl;
@@ -3431,7 +3432,14 @@ void bta_av_rcfg_str_ok(tBTA_AV_SCB* p_scb, tBTA_AV_DATA* p_data) {
  *
  ******************************************************************************/
 void bta_av_rcfg_failed(tBTA_AV_SCB* p_scb, tBTA_AV_DATA* p_data) {
-  uint8_t err_code = p_data->str_msg.msg.hdr.err_code;
+
+  uint8_t err_code;
+  if (p_data) {
+    err_code = p_data->str_msg.msg.hdr.err_code;
+  } else {
+    APPL_TRACE_ERROR("%s:data is null",__func__);
+    err_code = 0;
+  }
 
   APPL_TRACE_ERROR("%s: num_recfg=%d conn_lcb=0x%x peer_addr=%s, err_code: %d",
                    __func__, p_scb->num_recfg, bta_av_cb.conn_lcb,
