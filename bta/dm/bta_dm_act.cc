@@ -940,8 +940,9 @@ void bta_dm_hci_raw_command (tBTA_DM_MSG *p_data)
  ***
  ******************************************************************************/
 void bta_dm_process_remove_device(const RawAddress& bd_addr) {
+
   /* need to remove all pending background connection before unpair */
-  BTA_GATTC_CancelOpen(0, bd_addr, false);
+  GATT_CancelConnect(0, bd_addr, false);
 
   BTM_SecDeleteDevice(bd_addr);
 
@@ -1052,6 +1053,8 @@ void bta_dm_remove_device(tBTA_DM_MSG* p_data) {
 
 
         btm_remove_acl(other_address, peer_device.transport);
+        APPL_TRACE_DEBUG("%s: continue to delete the other dev after acl removing ", __func__);
+        continue_delete_other_dev = true;
         break;
       }
     }
@@ -5763,6 +5766,8 @@ static void bta_dm_gattc_callback(tBTA_GATTC_EVT event, tBTA_GATTC* p_data) {
           }
         } else {
           APPL_TRACE_DEBUG("%s Discovery Failure ", __func__);
+          if (is_remote_support_adv_audio(bta_dm_search_cb.peer_bdaddr))
+            bta_le_audio_service_search_failed(&bta_dm_search_cb.peer_bdaddr);
         }
 #endif
       }
