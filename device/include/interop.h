@@ -318,6 +318,10 @@ typedef enum {
   // Send out the bonded intent after 3s timeout if sdp is still not finished.
   INTEROP_SEND_BONDED_INTENT_AFTER_SDP_TIMEOUT,
 
+  // some remotes need empty response for CLCC immediately after VOIP call is ended
+  // and CS MT call is received
+  INTEROP_HFP_SEND_OK_FOR_CLCC_AFTER_VOIP_CALL_END,
+
   END_OF_INTEROP_LIST
 } interop_feature_t;
 
