@@ -707,6 +707,7 @@ void bond_state_changed(bt_status_t status, const RawAddress& bd_addr,
       btif_store_adv_audio_pair_info(bd_addr);
     }else if(state == BT_BOND_STATE_NONE) {
      bta_dm_reset_adv_audio_pairing_info(bd_addr);
+     btif_storage_remove_bonded_device(&bd_addr);
    }
   }
 
@@ -1787,6 +1788,12 @@ static void btif_dm_search_devices_evt(uint16_t event, char* p_param) {
                   BT_DISCOVERY_STOPPED);
       }
     } break;
+#ifdef ADV_AUDIO_FEATURE
+    case BTA_DM_LE_AUDIO_SEARCH_CMPL_EVT: {
+      btif_dm_lea_search_services_evt(event, p_param);
+      break;
+    }
+#endif
   }
 }
 
